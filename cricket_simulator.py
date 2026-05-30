@@ -22,7 +22,7 @@ from data.models import Team, MatchFormat, PlayerRole
 from data.live import LiveTracker, display_live_matches, display_commentary
 from engine.simulator import CricketSimulator
 from ai.predictor import AIPredictor
-from ai.train import train_ai_model
+from ai.train import train_advanced_model
 from tournament.manager import Tournament, TournamentFormat
 import logging
 
@@ -409,7 +409,7 @@ Examples:
     elif args.command == 'update':
         cli.update_data()
     elif args.command == 'ai-train':
-        train_ai_model()
+        train_advanced_model()
     else:
         parser.print_help()
 

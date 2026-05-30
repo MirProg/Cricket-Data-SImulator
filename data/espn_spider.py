@@ -3,61 +3,65 @@ import time
 import json
 import random
 import logging
-import cloudscraper
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - ESPN SPIDER - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - ESPN PLAYWRIGHT SPIDER - %(levelname)s - %(message)s')
 
 class ESPNHistoricalSpider:
     def __init__(self):
-        # cloudscraper mimics a real browser to bypass 403 Forbidden / Cloudflare blocks
-        self.scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'chrome',
-                'platform': 'windows',
-                'desktop': True
-            }
-        )
         self.data_dir = os.path.dirname(__file__)
         self.db_path = os.path.join(self.data_dir, 'espn_history_db.jsonl')
         
     def fetch_match(self, series_id: str, match_id: str):
         """
-        Fetches the full scorecard and commentary for a specific historical match.
-        Example Test Match 1877: series_id="60399", match_id="62431" (England vs Aus)
+        Fetches the full scorecard and commentary for a specific historical match
+        using a Headless Chromium browser to bypass Cloudflare.
         """
         url = f"https://www.espncricinfo.com/series/{series_id}/match/{match_id}/full-scorecard"
         
-        logger.info(f"Stealth fetching historical match: {url}")
+        logger.info(f"Stealth fetching via Playwright: {url}")
+        
         try:
-            response = self.scraper.get(url, timeout=15)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
+                page = context.new_page()
                 
-                # Extract basic match title
-                title_tag = soup.find('title')
-                title = title_tag.text if title_tag else "Unknown Match"
+                # Navigate and wait for DOM and Cloudflare checks to finish
+                response = page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 
-                # In a full run, we would parse all <div> elements for exact commentary,
-                # wickets, and ball-by-ball. This is a skeleton that demonstrates the bypass.
-                
-                match_data = {
-                    "match_id": match_id,
-                    "series_id": series_id,
-                    "title": title,
-                    "url": url,
-                    "status": "Scraped",
-                    "timestamp": time.time()
-                }
-                
-                self.save_match(match_data)
-                return True
-            else:
-                logger.error(f"Failed to fetch {url}. Status: {response.status_code}")
-                return False
+                if response and response.status == 200:
+                    html_content = page.content()
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    
+                    # Extract basic match title
+                    title_tag = soup.find('title')
+                    title = title_tag.text if title_tag else "Unknown Match"
+                    
+                    match_data = {
+                        "match_id": match_id,
+                        "series_id": series_id,
+                        "title": title,
+                        "url": url,
+                        "status": "Scraped",
+                        "timestamp": time.time()
+                    }
+                    
+                    self.save_match(match_data)
+                    browser.close()
+                    return True
+                else:
+                    status = response.status if response else "Unknown"
+                    logger.error(f"Failed to fetch {url}. Status: {status}")
+                    browser.close()
+                    return False
+                    
         except Exception as e:
-            logger.error(f"Exception during fetch: {e}")
+            logger.error(f"Exception during Playwright fetch: {e}")
             return False
             
     def save_match(self, match_data: dict):
@@ -70,10 +74,8 @@ class ESPNHistoricalSpider:
         The main loop that Claude AI will run.
         It simulates human browsing by sleeping 30-45 seconds between requests.
         """
-        logger.info("Starting Slow-Drip Historical Spider (1 match / 30s)...")
+        logger.info("Starting Playwright Slow-Drip Historical Spider (1 match / 30s)...")
         
-        # In a real run, this would be a queue of millions of match IDs dating back to 1877.
-        # For demonstration, we scrape the first Test Match in history.
         match_queue = [
             ("60399", "62431"), # 1st Test 1877
             ("60400", "62432"), # 2nd Test 1877

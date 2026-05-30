@@ -182,6 +182,14 @@ async def api_simulate_match(request: Request):
         "innings": match.innings_scores
     }
 
+@app.get("/api/live")
+async def get_live_matches():
+    """Public API to fetch real-world live matches from ESPN."""
+    from data.live import LiveTracker
+    tracker = LiveTracker()
+    matches = tracker.fetch_live_matches()
+    return {"live_matches": matches}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
