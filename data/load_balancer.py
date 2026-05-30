@@ -56,43 +56,35 @@ class DistributedScraperEngine:
         return success
         
     def run_distributed_crawl(self):
-        logger.info("Starting Distributed Scraper Engine (ESPN + Cricbuzz + CricketArchive)")
+        import sqlite3
+        logger.info("Starting Distributed Scraper Engine with SQLite Queue (ESPN + Cricbuzz + CricketArchive)")
         
-        # A mapped queue of matches (added ca_match IDs)
-        match_queue = [
-            # 2011 World Cup Final: ESPN ID vs Cricbuzz ID vs CA ID
-            {"espn_series": "381449", "espn_match": "433606", "cb_match": "10672", "ca_match": "1426957"},
-            # Random IPL match
-            {"espn_series": "8048", "espn_match": "1422127", "cb_match": "89736", "ca_match": "1426958"},
-        ]
+        conn = sqlite3.connect('data/cricket_db.sqlite')
         
-        for match in match_queue:
-            # Modified to support passing CA match ID
-            ca_id = match.get("ca_match", match["cb_match"])
+        while True:
+            # Fetch up to 10 pending matches per chunk
+            cursor = conn.execute("SELECT ca_match_id FROM CrawlQueue WHERE status='PENDING' LIMIT 10")
+            pending_matches = cursor.fetchall()
             
-            # We route traffic between CricketArchive, Cricbuzz, and ESPN
-            route = random.random()
-            
-            if route < 0.33:
-                logger.info("Routing request to CRICKETARCHIVE Spider...")
+            if not pending_matches:
+                logger.info("CrawlQueue is empty! No pending matches found.")
+                break
+                
+            for (ca_id,) in pending_matches:
+                # We rely entirely on CricketArchive! (Which the user noted has no limits!)
+                logger.info(f"Routing request exclusively to CRICKETARCHIVE Spider for ID: {ca_id}...")
                 success = self.cricketarchive.fetch_match(ca_id)
-                if not success:
-                    success = self.cricbuzz.fetch_match(match["cb_match"])
-            elif route < 0.66:
-                logger.info("Routing request to CRICBUZZ Spider...")
-                success = self.cricbuzz.fetch_match(match["cb_match"])
-                if not success:
-                    success = self.espn.fetch_match(match["espn_series"], match["espn_match"])
-            else:
-                logger.info("Routing request to ESPN Spider...")
-                success = self.espn.fetch_match(match["espn_series"], match["espn_match"])
-                if not success:
-                    success = self.cricketarchive.fetch_match(ca_id)
-            
-            # Global Sleep to protect IP (Reduced for higher speed)
-            sleep_time = random.uniform(5.0, 10.0)
-            logger.info(f"Cooling down for {sleep_time:.1f} seconds to evade WAFs...")
-            time.sleep(sleep_time)
+                
+                if success:
+                    conn.execute("UPDATE CrawlQueue SET status='COMPLETED' WHERE ca_match_id=?", (ca_id,))
+                else:
+                    conn.execute("UPDATE CrawlQueue SET status='FAILED' WHERE ca_match_id=?", (ca_id,))
+                    
+                conn.commit()
+                
+                # FULL THROTTLE: The user requested no cooldowns for CricketArchive
+                
+        conn.close()
 
 if __name__ == "__main__":
     engine = DistributedScraperEngine()

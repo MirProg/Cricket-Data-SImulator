@@ -222,7 +222,7 @@ async def get_live_matches():
     """Public API to fetch real-world live matches from ESPN."""
     from data.live import LiveTracker
     tracker = LiveTracker()
-    matches = tracker.fetch_live_matches()
+    matches = tracker.get_live_matches()
     return {"live_matches": matches}
 
 if __name__ == "__main__":
