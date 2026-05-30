@@ -6,10 +6,10 @@ import schedule
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - CLAUDE-AUTO - %(levelname)s - %(message)s')
 
-def update_cricsheet():
-    logging.info("Starting weekly Cricsheet massive database pull...")
-    subprocess.run(["python", "data/cricsheet.py"], check=True)
-    logging.info("Cricsheet pull complete.")
+def run_distributed_scrapers():
+    logging.info("Starting Distributed Historical Load Balancer...")
+    subprocess.run(["python", "data/load_balancer.py"], check=False)
+    logging.info("Distributed scrape chunk complete.")
 
 def retrain_ai():
     logging.info("Starting advanced PyTorch AI retraining with latest data...")
@@ -37,7 +37,7 @@ def run_daemon():
     logging.info("🏏 Claude AI Cricket Simulator Automation Daemon Started 🏏")
     
     # Schedule massive updates (e.g., weekly or daily)
-    schedule.every().day.at("02:00").do(update_cricsheet)
+    schedule.every().day.at("02:00").do(run_distributed_scrapers)
     schedule.every().day.at("03:00").do(retrain_ai)
     schedule.every().day.at("04:00").do(push_to_github)
     
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     # If run with --now, execute immediately before entering loop
     import sys
     if "--now" in sys.argv:
-        update_cricsheet()
+        run_distributed_scrapers()
         retrain_ai()
         push_to_github()
     run_daemon()
