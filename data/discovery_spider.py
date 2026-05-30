@@ -32,20 +32,17 @@ def run_discovery():
     logger.info("Starting Discovery Spider...")
     conn = setup_db()
     
-    # We will seed the queue with a batch of recent sequential IDs for the load balancer
-    # A full recursive crawl takes hours, so we inject a chunk of IDs directly into the Queue.
-    # We use 1426900 to 1427000 as a seed block (recent matches)
-    base_id = 1426900
+    # We will seed the queue with a massive block of 100,000 IDs for the multithreaded load balancer
+    base_id = 1410000 # Seed block
     new_matches = 0
     
-    for i in range(100):
+    for i in range(100000):
         ca_match_id = str(base_id + i)
         
         try:
             conn.execute('INSERT INTO CrawlQueue (ca_match_id, status) VALUES (?, ?)', (ca_match_id, 'PENDING'))
             new_matches += 1
         except sqlite3.IntegrityError:
-            # Already in queue
             pass
             
     conn.commit()
