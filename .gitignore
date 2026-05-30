@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 
 # Data & Models
-ai/models/*.pth
 
 # Logs
 cricket_simulator.log

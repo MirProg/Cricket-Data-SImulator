@@ -1,91 +1,90 @@
-"""
-AI Predictor for Ball-by-Ball Simulation.
-Exposes the trained PyTorch neural network to the simulator engine.
-"""
-
 import os
-import logging
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
-from typing import Dict, Tuple
+import logging
 
 logger = logging.getLogger(__name__)
 
-try:
-    import torch
-    from torch.nn.functional import softmax
-    from .train import BallPredictorNet
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
-    logger.warning("PyTorch not available. AI Predictor will fall back to heuristic models.")
+class DeepCricketTransformer(nn.Module):
+    def __init__(self, d_model=128, nhead=4, num_layers=2):
+        super().__init__()
+        # 12 context features: bat_avg, bat_sr, bat_form, bowl_avg, bowl_econ, bowl_form, 
+        # format_enc, pitch, score, wickets, overs, target
+        self.input_proj = nn.Linear(12, d_model)
+        
+        # Add a mock sequence processor for the " हजारों (thousands of)" factor context
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=d_model*4, batch_first=True)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        
+        self.fc1 = nn.Linear(d_model, d_model * 2)
+        self.dropout = nn.Dropout(0.2)
+        self.fc2 = nn.Linear(d_model * 2, d_model)
+        
+        # 7 output classes: WICKET(0), DOT(1), 1(2), 2(3), 3(4), 4(5), 6(6)
+        self.out = nn.Linear(d_model, 7)
+        
+    def forward(self, x):
+        # x shape: (batch, seq_len, 12)
+        x = self.input_proj(x)
+        x = self.transformer(x)
+        # Take the last sequence element
+        x = x[:, -1, :]
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = F.relu(self.fc2(x))
+        return self.out(x)
 
 class AIPredictor:
-    """
-    Loads the trained PyTorch model and provides fast inference for the simulator.
-    """
-    
-    def __init__(self):
-        self.model = None
+    def __init__(self, model_path=None):
+        if not model_path:
+            model_path = os.path.join(os.path.dirname(__file__), 'models', 'advanced_predictor.pth')
+        
+        self.model_path = model_path
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = DeepCricketTransformer().to(self.device)
         self.is_loaded = False
+        self._load_model()
         
-        if TORCH_AVAILABLE:
-            self._load_model()
-            
     def _load_model(self):
-        """Loads the saved PyTorch model weights."""
-        model_path = os.path.join(os.path.dirname(__file__), "models", "ball_predictor.pth")
-        
-        if not os.path.exists(model_path):
-            logger.warning(f"AI model not found at {model_path}. Run 'ai-train' first.")
-            return
-            
         try:
-            self.model = BallPredictorNet()
-            self.model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-            self.model.eval()  # Set to inference mode
-            self.is_loaded = True
-            logger.info("Successfully loaded PyTorch BallPredictorNet.")
+            if os.path.exists(self.model_path):
+                self.model.load_state_dict(torch.load(self.model_path, map_location=self.device))
+                self.model.eval()
+                self.is_loaded = True
+                logger.info("Successfully loaded Advanced PyTorch Transformer.")
+            else:
+                logger.warning(f"Advanced model not found at {self.model_path}. Fallback to heuristics.")
         except Exception as e:
-            logger.error(f"Failed to load PyTorch model: {e}")
+            logger.error(f"Failed to load Advanced model: {e}")
             
-    def predict_ball(self, bat_avg: float, bat_sr: float, bat_form: float,
-                    bowl_avg: float, bowl_econ: float, bowl_form: float,
-                    match_format: float, pitch_factor: float) -> np.ndarray:
-        """
-        Predicts the probability distribution for the next ball.
-        
-        Args:
-            bat_avg: Batsman batting average
-            bat_sr: Batsman strike rate
-            bat_form: Batsman recent form (0.0 to 1.0)
-            bowl_avg: Bowler bowling average
-            bowl_econ: Bowler economy
-            bowl_form: Bowler recent form (0.0 to 1.0)
-            match_format: 0.0 (Test), 0.5 (ODI), or 1.0 (T20)
-            pitch_factor: ~1.0
-            
-        Returns:
-            Numpy array of 7 probabilities: [Wicket, Dot, 1, 2, 3, 4, 6]
-        """
+    def predict_ball(self, bat_avg, bat_sr, bat_form, bowl_avg, bowl_econ, bowl_form, match_format, pitch_factor, 
+                     score=0, wickets=0, overs=0, target=0):
         if not self.is_loaded:
-            # Fallback if model not trained
-            return np.array([0.05, 0.45, 0.30, 0.05, 0.01, 0.10, 0.04])
+            return None
             
-        # Format inputs into a tensor
-        x = torch.tensor([[
-            bat_avg / 100.0,
-            bat_sr / 200.0,
+        # Build state context
+        # In a real seq model, we'd pass a sequence of past balls. Here we pass a single element sequence.
+        context = [
+            bat_avg / 50.0,
+            bat_sr / 150.0,
             bat_form,
-            bowl_avg / 100.0,
-            bowl_econ / 12.0,
+            bowl_avg / 40.0,
+            bowl_econ / 10.0,
             bowl_form,
             match_format,
-            pitch_factor
-        ]], dtype=torch.float32)
+            pitch_factor,
+            score / 300.0,
+            wickets / 10.0,
+            overs / 50.0,
+            target / 300.0
+        ]
         
-        # Inference
+        tensor_in = torch.tensor([[context]], dtype=torch.float32).to(self.device)
+        
         with torch.no_grad():
-            logits = self.model(x)
-            probs = softmax(logits, dim=1).numpy().flatten()
+            logits = self.model(tensor_in)
+            probs = F.softmax(logits, dim=-1).cpu().numpy()[0]
             
         return probs

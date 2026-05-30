@@ -144,6 +144,44 @@ async def websocket_simulate(websocket: WebSocket):
     except Exception as e:
         await websocket.send_json({"type": "error", "message": str(e)})
 
+@app.get("/api/players/{team_id}")
+async def get_players(team_id: str):
+    """Public API to fetch all players for a specific team."""
+    teams = cached_teams
+    if team_id not in teams:
+        return {"error": "Team not found"}
+    return teams[team_id].get("players", {})
+
+@app.post("/api/simulate")
+async def api_simulate_match(request: Request):
+    """Public API to programmatically simulate a match and get the result JSON."""
+    data = await request.json()
+    team1_id = data.get("team1")
+    team2_id = data.get("team2")
+    format_str = data.get("format", "T20")
+    
+    if not team1_id or not team2_id:
+        return {"error": "Missing teams"}
+        
+    teams = collector.collect_all_data()
+    if team1_id not in teams or team2_id not in teams:
+        return {"error": "Invalid teams"}
+        
+    t1 = teams[team1_id]
+    t2 = teams[team2_id]
+    match_format = MatchFormat(format_str.upper())
+    
+    match = simulator.simulate_match(t1, t2, match_format, "Virtual Stadium", ai_predictor)
+    
+    return {
+        "match_id": match.match_id,
+        "format": match_format.value,
+        "team1": t1.name,
+        "team2": t2.name,
+        "result": match.result,
+        "innings": match.innings_scores
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
