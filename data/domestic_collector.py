@@ -23,9 +23,9 @@ def fetch_domestic_leagues():
         logger.info(f"Fetching local teams & players for {format_name}...")
         
         # Scrape batting
-        bat_data_list = collector._scrape_all_pages(class_id, "batting", f"{format_name} Batting", max_pages=5)
+        bat_data_list = collector._scrape_all_pages(class_id, "batting", f"{format_name} Batting")
         # Scrape bowling
-        bowl_data_list = collector._scrape_all_pages(class_id, "bowling", f"{format_name} Bowling", max_pages=5)
+        bowl_data_list = collector._scrape_all_pages(class_id, "bowling", f"{format_name} Bowling")
         
         for stats in bat_data_list:
             p_id = str(stats["player_id"])

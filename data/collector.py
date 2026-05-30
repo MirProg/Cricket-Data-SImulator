@@ -374,7 +374,7 @@ class CricketDataCollector:
     # ================================================================
 
     def _scrape_all_pages(self, format_class: int, stat_type: str,
-                          label: str) -> List[Dict]:
+                          label: str, max_pages: int = None) -> List[Dict]:
         """Scrape all pages of a Statsguru query. Paginates until done."""
         all_records: List[Dict] = []
         page = 1
@@ -383,6 +383,9 @@ class CricketDataCollector:
         parser = self._parse_batting_rows if stat_type == "batting" else self._parse_bowling_rows
 
         while True:
+            if max_pages and page > max_pages:
+                break
+
             url = self._build_url(format_class, stat_type, page)
             pg = f"{page}/{total_pages}" if total_pages else str(page)
             sys.stdout.write(f"\r  📊 {label} — page {pg} ({len(all_records)} records)   ")
@@ -416,6 +419,9 @@ class CricketDataCollector:
             if len(records) < self.PAGE_SIZE // 2:
                 # Significantly fewer results than page size → likely last page
                 break
+            
+            import random, time
+            time.sleep(random.uniform(1.5, 3.0))
             page += 1
 
         print(f"\r  ✅ {label}: {len(all_records)} players across {page} pages                ")
