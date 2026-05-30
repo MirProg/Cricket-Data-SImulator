@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cricket AI Simulator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="glass-container">
+        <header>
+            <div class="logo">
+                <span class="ai-badge">AI</span>
+                <h1>Cricket Simulator</h1>
+            </div>
+            <nav>
+                <button class="nav-btn active" data-target="simulation">Simulation</button>
+                <button class="nav-btn" data-target="live">Live Matches</button>
+                <button class="nav-btn" data-target="database">Database</button>
+            </nav>
+        </header>
+
+        <main id="simulation-view" class="view active">
+            <div class="setup-panel">
+                <h2>New Match</h2>
+                <div class="form-group">
+                    <label>Team 1</label>
+                    <select id="team1-select"><option>Loading...</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Team 2</label>
+                    <select id="team2-select"><option>Loading...</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Format</label>
+                    <select id="format-select">
+                        <option value="T20">T20 (20 Overs)</option>
+                        <option value="ODI">ODI (50 Overs)</option>
+                        <option value="Test">Test Match</option>
+                    </select>
+                </div>
+                <button id="start-sim-btn" class="primary-btn">Simulate Match</button>
+            </div>
+
+            <div class="live-panel">
+                <div class="score-card">
+                    <div class="team-score" id="score-team1">
+                        <h3>Team 1</h3>
+                        <div class="score">0/0</div>
+                        <div class="overs">(0.0)</div>
+                    </div>
+                    <div class="vs">VS</div>
+                    <div class="team-score" id="score-team2">
+                        <h3>Team 2</h3>
+                        <div class="score">0/0</div>
+                        <div class="overs">(0.0)</div>
+                    </div>
+                </div>
+                
+                <div class="match-status" id="match-status">Waiting to start...</div>
+
+                <div class="commentary-feed" id="commentary-box">
+                    <div class="commentary-item system">AI Simulator Engine Ready.</div>
+                </div>
+            </div>
+        </main>
+
+        <main id="live-view" class="view" style="display: none;">
+            <h2>Live Real-World Matches</h2>
+            <div class="live-matches-grid" id="live-matches-grid">
+                <div class="loader">Fetching live data from ESPN API...</div>
+            </div>
+        </main>
+
+        <main id="database-view" class="view" style="display: none;">
+            <h2>Domestic & International Database</h2>
+            <div class="db-controls">
+                <button class="secondary-btn" id="fetch-domestic-btn">Download Domestic Teams</button>
+                <p class="help-text">ESPN Data includes FC, List A, and T20 franchises.</p>
+            </div>
+            <div class="teams-grid" id="teams-grid">
+                <!-- Teams list injected here -->
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data & Models
+data/teams.json
+ai/models/*.pth
+
+# Logs
+cricket_simulator.log
+*.log
+
+# Environment
+.env
+venv/
+env/
+ENV/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
