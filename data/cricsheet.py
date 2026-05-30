@@ -43,59 +43,69 @@ def process_cricsheet_scorecards():
         return
         
     json_files = [f for f in os.listdir(CRICSHEET_DIR) if f.endswith('.json')]
-    logger.info(f"Processing ALL {len(json_files)} historical scorecards... This will take time.")
+    logger.info(f"Streaming {len(json_files)} historical scorecards into SQLite DB... This will take time.")
     
-    teams_db = {}
+    from db import CricketDB
+    db = CricketDB()
     
-    # Process EVERY single match in the history of cricket
+    # Process EVERY single match into SQL
     for count, file in enumerate(json_files):
         with open(os.path.join(CRICSHEET_DIR, file), 'r', encoding='utf-8') as f:
             match_data = json.load(f)
             
         info = match_data.get("info", {})
-        players_reg = info.get("registry", {}).get("people", {})
-        
-        # To get historical commentary, we extract the cricinfo ID from the registry if available
-        # or from the match metadata. Cricsheet often provides the ESPN match ID.
         cricinfo_id = info.get("registry", {}).get("cricinfo", "Unknown")
         
-        teams = info.get("teams", [])
+        # We assume the first element of 'teams' is team1 and second is team2
+        teams = info.get("teams", ["Unknown1", "Unknown2"])
+        team1 = teams[0] if len(teams) > 0 else "Unknown1"
+        team2 = teams[1] if len(teams) > 1 else "Unknown2"
         
-        # Build team structures
-        for team in teams:
-            if team not in teams_db:
-                teams_db[team] = {
-                    "name": team,
-                    "country": "Unknown",  # Cricsheet doesn't explicitly mark domestic vs intl easily
-                    "players": {}
-                }
-                
-        # Register players
-        players = info.get("players", {})
-        for team, squad in players.items():
-            for player_name in squad:
-                # Mock stats since Cricsheet is ball-by-ball, not aggregate.
-                # In a real massive pipeline we would calculate averages dynamically from the balls.
-                teams_db[team]["players"][player_name] = {
-                    "name": player_name,
-                    "role": "ALL_ROUNDER",
-                    "batting_avg": 25.0,
-                    "batting_sr": 130.0,
-                    "highest_score": 0,
-                    "bowling_avg": 30.0,
-                    "economy": 7.5,
-                    "wickets": 0,
-                    "recent_form": 1.0
-                }
-                
-        if count > 0 and count % 100 == 0:
-            logger.info(f"Processed {count} scorecards...")
+        sql_match = {
+            "match_id": str(cricinfo_id),
+            "date": info.get("dates", [""])[0],
+            "venue": info.get("venue", ""),
+            "city": info.get("city", ""),
+            "format": info.get("match_type", ""),
+            "gender": info.get("gender", ""),
+            "team1": team1,
+            "team2": team2,
+            "winner": info.get("outcome", {}).get("winner", ""),
+            "win_margin_runs": info.get("outcome", {}).get("by", {}).get("runs", 0),
+            "win_margin_wickets": info.get("outcome", {}).get("by", {}).get("wickets", 0)
+        }
+        
+        # Parse innings and balls
+        sql_balls = []
+        innings_list = match_data.get("innings", [])
+        for inn_idx, innings in enumerate(innings_list):
+            for inn_dict in innings.values() if isinstance(innings, dict) else [innings]:
+                if not isinstance(inn_dict, dict): continue
+                overs = inn_dict.get("overs", [])
+                for over in overs:
+                    over_num = over.get("over", 0)
+                    for ball_idx, delivery in enumerate(over.get("deliveries", [])):
+                        is_wicket = "wickets" in delivery
+                        w_type = delivery["wickets"][0].get("kind", "") if is_wicket else ""
+                        p_out = delivery["wickets"][0].get("player_out", "") if is_wicket else ""
+                        
+                        sql_balls.append((
+                            str(cricinfo_id), inn_idx+1, over_num, ball_idx+1,
+                            delivery.get("batter", ""), delivery.get("bowler", ""),
+                            delivery.get("non_striker", ""),
+                            delivery.get("runs", {}).get("batter", 0),
+                            delivery.get("runs", {}).get("extras", 0),
+                            is_wicket, w_type, p_out
+                        ))
+                        
+        # Stream batch into SQLite
+        db.insert_match_data(sql_match, sql_balls)
+        
+        if count > 0 and count % 500 == 0:
+            logger.info(f"Streamed {count} scorecards into SQLite...")
             
-    # Save the huge database
-    with open(os.path.join(DATA_DIR, 'cricsheet_teams.json'), 'w') as f:
-        json.dump(teams_db, f, indent=4)
-        
-    logger.info(f"Successfully processed {len(teams_db)} complete domestic and international teams from Cricsheet.")
+    logger.info(f"Successfully streamed all Cricsheet matches into the SQL database.")
+
 
 if __name__ == "__main__":
     download_cricsheet_data()
