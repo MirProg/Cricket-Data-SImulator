@@ -40,7 +40,7 @@ def poll_live_matches():
     # This keeps the live tracker hot
     import urllib.request
     try:
-        urllib.request.urlopen("http://127.0.0.1:8000/api/live")
+        urllib.request.urlopen("http://127.0.0.1:8000/api/v1/live")
         logging.info("Polled live matches from FastAPI backend.")
     except Exception as e:
         logging.warning(f"FastAPI backend might not be running: {e}")

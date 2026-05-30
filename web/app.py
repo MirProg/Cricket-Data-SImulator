@@ -205,7 +205,7 @@ async def get_system_status():
     log_file = "data/scraper.log"
     recent_logs = []
     if os.path.exists(log_file):
-        with open(log_file, "r") as f:
+        with open(log_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
             recent_logs = lines[-5:] if len(lines) >= 5 else lines
             
