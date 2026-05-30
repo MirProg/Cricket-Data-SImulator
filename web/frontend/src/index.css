@@ -1,3 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #00ffcc;
+  --color-bg-dark: #0a0f16;
+  --color-glass-bg: rgba(25, 35, 50, 0.6);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  --color-text-secondary: #8a9bb3;
+}
+
 :root {
   --primary-color: #00ffcc;
   --bg-dark: #0a0f16;
