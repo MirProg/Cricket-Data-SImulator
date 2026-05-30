@@ -61,8 +61,8 @@ class DistributedScraperEngine:
         for match in match_queue:
             self.fetch_historical_match(match["espn_series"], match["espn_match"], match["cb_match"])
             
-            # Global Sleep to protect IP
-            sleep_time = random.uniform(25.0, 40.0)
+            # Global Sleep to protect IP (Reduced for higher speed)
+            sleep_time = random.uniform(5.0, 10.0)
             logger.info(f"Cooling down for {sleep_time:.1f} seconds to evade WAFs...")
             time.sleep(sleep_time)
 
