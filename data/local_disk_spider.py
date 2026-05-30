@@ -24,7 +24,7 @@ LOCAL_MIRROR = r"D:\cricketarchive.com\Archive\Scorecards"
 DB_PATH = "data/cricket_db.sqlite"
 
 def setup_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=60.0)
     conn.execute('''
         CREATE TABLE IF NOT EXISTS CrawlQueue (
             ca_match_id TEXT PRIMARY KEY,

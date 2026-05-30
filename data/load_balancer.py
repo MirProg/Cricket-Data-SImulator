@@ -59,22 +59,22 @@ class DistributedScraperEngine:
         import sqlite3
         logger.info("Starting Distributed Scraper Engine with SQLite Queue (ESPN + Cricbuzz + CricketArchive)")
         
-        conn = sqlite3.connect('data/cricket_db.sqlite', check_same_thread=False)
+        conn = sqlite3.connect('data/cricket_db.sqlite', check_same_thread=False, timeout=60.0)
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         
         db_lock = threading.Lock()
         
         while True:
-            # Fetch up to 20 pending matches per chunk
-            cursor = conn.execute("SELECT ca_match_id FROM CrawlQueue WHERE status='PENDING' LIMIT 20")
+            # Fetch up to 100 pending matches per chunk for maximum throttle
+            cursor = conn.execute("SELECT ca_match_id FROM CrawlQueue WHERE status='PENDING' LIMIT 100")
             pending_matches = cursor.fetchall()
             
             if not pending_matches:
                 logger.info("CrawlQueue is empty! No pending matches found.")
                 break
                 
-            logger.info(f"Dispatching {len(pending_matches)} matches to ThreadPoolExecutor (5 threads)...")
+            logger.info(f"Dispatching {len(pending_matches)} matches to ThreadPoolExecutor (50 threads)...")
             
             def scrape_worker(ca_id):
                 success = self.cricketarchive.fetch_match(ca_id)
@@ -95,7 +95,7 @@ class DistributedScraperEngine:
             conn.commit()
             logger.info("Batch processed and committed.")
             
-            # Small cooldown between batches to avoid triggering Cloudflare again
+            # 2 second cooldown to avoid Cloudflare ban
             time.sleep(2)
             
         conn.close()
