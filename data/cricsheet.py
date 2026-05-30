@@ -54,6 +54,11 @@ def process_cricsheet_scorecards():
             
         info = match_data.get("info", {})
         players_reg = info.get("registry", {}).get("people", {})
+        
+        # To get historical commentary, we extract the cricinfo ID from the registry if available
+        # or from the match metadata. Cricsheet often provides the ESPN match ID.
+        cricinfo_id = info.get("registry", {}).get("cricinfo", "Unknown")
+        
         teams = info.get("teams", [])
         
         # Build team structures
