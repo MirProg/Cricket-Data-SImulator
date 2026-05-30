@@ -11,9 +11,8 @@ import json
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from data.collector import CricketDataCollector
-from engine.simulator import CricketSimulator, MatchFormat
+from engine.simulator import CricketSimulator, MatchFormat, MatchEvent
 from ai.predictor import AIPredictor
-from data.models import MatchEvent
 
 app = FastAPI(title="Cricket Simulator AI")
 
