@@ -3,8 +3,20 @@ import os
 import subprocess
 import logging
 import schedule
+from bs4 import BeautifulSoup
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - CLAUDE-AUTO - %(levelname)s - %(message)s')
+# Ensure data directory exists
+os.makedirs("data", exist_ok=True)
+
+# Configure logging to write to both console and scraper.log
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - CLAUDE-AUTO - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("data/scraper.log", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
 
 def run_distributed_scrapers():
     logging.info("Starting Distributed Historical Load Balancer...")
@@ -39,7 +51,9 @@ def run_daemon():
     # Schedule massive updates (e.g., weekly or daily)
     schedule.every().day.at("02:00").do(run_distributed_scrapers)
     schedule.every().day.at("03:00").do(retrain_ai)
-    schedule.every().day.at("04:00").do(push_to_github)
+    
+    # Schedule continuous GitHub sync (every 15 minutes)
+    schedule.every(15).minutes.do(push_to_github)
     
     # Schedule live match polling (every 5 minutes)
     schedule.every(5).minutes.do(poll_live_matches)

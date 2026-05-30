@@ -4,8 +4,12 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
+import functools
+import sqlite3
+import logging
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -151,13 +155,17 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-@app.get("/api/v1/matches")
-async def get_matches(limit: int = 50, offset: int = 0):
-    """Public API to fetch all historical matches with pagination."""
+@functools.lru_cache(maxsize=128)
+def get_cached_matches(limit: int, offset: int):
     conn = get_db_connection()
     matches = conn.execute('SELECT * FROM Matches ORDER BY date DESC LIMIT ? OFFSET ?', (limit, offset)).fetchall()
     conn.close()
     return {"matches": [dict(m) for m in matches]}
+
+@app.get("/api/v1/matches")
+async def get_matches(limit: int = 50, offset: int = 0):
+    """Public API to fetch all historical matches with pagination."""
+    return get_cached_matches(limit, offset)
 
 @app.get("/api/v1/matches/{match_id}/ball-by-ball")
 async def get_ball_by_ball(match_id: str):
@@ -184,6 +192,30 @@ async def get_player(player_id: str):
     if not player:
         return {"error": "Player not found"}
     return dict(player)
+
+@app.get("/api/v1/system/status")
+async def get_system_status():
+    """Public API to monitor the background SQLite ETL and Spiders."""
+    conn = get_db_connection()
+    matches_count = conn.execute('SELECT COUNT(*) FROM Matches').fetchone()[0]
+    balls_count = conn.execute('SELECT COUNT(*) FROM BallByBall').fetchone()[0]
+    conn.close()
+    
+    # Read the last few lines of the daemon log if available
+    log_file = "data/scraper.log"
+    recent_logs = []
+    if os.path.exists(log_file):
+        with open(log_file, "r") as f:
+            lines = f.readlines()
+            recent_logs = lines[-5:] if len(lines) >= 5 else lines
+            
+    return {
+        "database": {
+            "total_matches": matches_count,
+            "total_balls_delivered": balls_count
+        },
+        "scraper_logs": [log.strip() for log in recent_logs]
+    }
 
 @app.get("/api/v1/live")
 async def get_live_matches():

@@ -54,7 +54,7 @@ def process_cricsheet_scorecards():
             match_data = json.load(f)
             
         info = match_data.get("info", {})
-        cricinfo_id = info.get("registry", {}).get("cricinfo", "Unknown")
+        cricinfo_id = file.replace('.json', '')
         
         # We assume the first element of 'teams' is team1 and second is team2
         teams = info.get("teams", ["Unknown1", "Unknown2"])
@@ -79,24 +79,31 @@ def process_cricsheet_scorecards():
         sql_balls = []
         innings_list = match_data.get("innings", [])
         for inn_idx, innings in enumerate(innings_list):
-            for inn_dict in innings.values() if isinstance(innings, dict) else [innings]:
-                if not isinstance(inn_dict, dict): continue
-                overs = inn_dict.get("overs", [])
-                for over in overs:
-                    over_num = over.get("over", 0)
-                    for ball_idx, delivery in enumerate(over.get("deliveries", [])):
-                        is_wicket = "wickets" in delivery
-                        w_type = delivery["wickets"][0].get("kind", "") if is_wicket else ""
-                        p_out = delivery["wickets"][0].get("player_out", "") if is_wicket else ""
-                        
-                        sql_balls.append((
-                            str(cricinfo_id), inn_idx+1, over_num, ball_idx+1,
-                            delivery.get("batter", ""), delivery.get("bowler", ""),
-                            delivery.get("non_striker", ""),
-                            delivery.get("runs", {}).get("batter", 0),
-                            delivery.get("runs", {}).get("extras", 0),
-                            is_wicket, w_type, p_out
-                        ))
+            if not isinstance(innings, dict):
+                # Legacy cricsheet format fallback
+                if isinstance(innings, list) and len(innings) > 0 and isinstance(innings[0], dict):
+                    # old format {"1st innings": {"deliveries": [...]}}
+                    for inn_key, inn_val in innings[0].items():
+                        innings = inn_val
+                else:
+                    continue
+                    
+            overs = innings.get("overs", [])
+            for over in overs:
+                over_num = over.get("over", 0)
+                for ball_idx, delivery in enumerate(over.get("deliveries", [])):
+                    is_wicket = "wickets" in delivery
+                    w_type = delivery["wickets"][0].get("kind", "") if is_wicket else ""
+                    p_out = delivery["wickets"][0].get("player_out", "") if is_wicket else ""
+                    
+                    sql_balls.append((
+                        str(cricinfo_id), inn_idx+1, over_num, ball_idx+1,
+                        delivery.get("batter", ""), delivery.get("bowler", ""),
+                        delivery.get("non_striker", ""),
+                        delivery.get("runs", {}).get("batter", 0),
+                        delivery.get("runs", {}).get("extras", 0),
+                        is_wicket, w_type, p_out
+                    ))
                         
         # Stream batch into SQLite
         db.insert_match_data(sql_match, sql_balls)

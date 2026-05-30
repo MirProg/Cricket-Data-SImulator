@@ -18,8 +18,10 @@ function App() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [status, setStatus] = useState<any>(null);
+
   useEffect(() => {
-    // Fetch from FastAPI Backend
+    // Fetch Historical Matches
     fetch('http://localhost:8000/api/v1/matches')
       .then(res => res.json())
       .then(data => {
@@ -32,6 +34,18 @@ function App() {
         console.error("Failed to fetch matches:", err);
         setLoading(false);
       });
+
+    // Poll Spider Status Every 3 Seconds
+    const fetchStatus = () => {
+      fetch('http://localhost:8000/api/v1/system/status')
+        .then(res => res.json())
+        .then(data => setStatus(data))
+        .catch(err => console.error(err));
+    };
+    
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -42,6 +56,41 @@ function App() {
         </h1>
         <p className="text-text-secondary text-lg">The definitive archive of every cricket match in history.</p>
       </header>
+
+      {/* Live Spider Dashboard */}
+      {status && (
+        <div className="mb-12 bg-glass-bg backdrop-blur-md border border-primary/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-[#0096ff] animate-pulse"></div>
+          <h2 className="text-2xl font-bold mb-4 flex items-center">
+            <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse mr-3"></span>
+            Live Spider Dashboard
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="bg-bg-dark rounded-lg p-4 border border-glass-border text-center">
+              <div className="text-text-secondary text-sm mb-1">Total Matches Ingested</div>
+              <div className="text-3xl font-bold text-primary">{status.database.total_matches.toLocaleString()}</div>
+            </div>
+            <div className="bg-bg-dark rounded-lg p-4 border border-glass-border text-center">
+              <div className="text-text-secondary text-sm mb-1">Total Deliveries Mapped</div>
+              <div className="text-3xl font-bold text-primary">{status.database.total_balls_delivered.toLocaleString()}</div>
+            </div>
+            <div className="bg-bg-dark rounded-lg p-4 border border-glass-border text-center">
+              <div className="text-text-secondary text-sm mb-1">Network Scraper Protocol</div>
+              <div className="text-xl font-bold text-[#0096ff] mt-1">Cricinfo/Cricbuzz</div>
+            </div>
+          </div>
+          
+          <div className="bg-black/50 rounded-lg p-4 font-mono text-xs text-green-400 overflow-hidden h-32 flex flex-col justify-end border border-white/5">
+            {status.scraper_logs && status.scraper_logs.length > 0 ? (
+              status.scraper_logs.map((log: string, i: number) => (
+                <div key={i} className="whitespace-pre-wrap">{log}</div>
+              ))
+            ) : (
+              <div className="text-gray-500 italic">Waiting for distributed spiders to ping the terminal...</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center text-2xl text-primary py-10 animate-pulse">Loading Historical Data...</div>

@@ -1,11 +1,23 @@
 import logging
 import random
 import time
+import os
 from espn_spider import ESPNHistoricalSpider
 from cricbuzz_spider import CricbuzzSpider
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - LOAD BALANCER - %(levelname)s - %(message)s')
+
+# Ensure data dir exists
+os.makedirs("data", exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - LOAD BALANCER - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("data/scraper.log", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
 
 class DistributedScraperEngine:
     def __init__(self):
