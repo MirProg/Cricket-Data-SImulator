@@ -177,6 +177,89 @@ async def get_top_batsmen(limit: int = 10):
     conn.close()
     return [dict(r) for r in rows]
 
+@app.get("/api/archives/{year}")
+async def get_matches_by_year(year: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT m.match_id, m.date, m.format, m.venue, m.win_margin_runs,
+               t1.name as team1_name, t2.name as team2_name, tw.name as winner_name
+        FROM Matches m
+        LEFT JOIN Teams t1 ON m.team1_id = t1.team_id
+        LEFT JOIN Teams t2 ON m.team2_id = t2.team_id
+        LEFT JOIN Teams tw ON m.winner = tw.team_id
+        WHERE m.date LIKE ?
+        ORDER BY m.date DESC LIMIT 50
+    """, (f"{year}-%",))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/team/{team_name}")
+async def get_team_matches(team_name: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    decoded_name = team_name.replace("%20", " ")
+    
+    # Capitalize for basic matching (e.g. 'india' -> 'India')
+    formatted_name = decoded_name.title()
+    if formatted_name.lower() == 'new-zealand': formatted_name = 'New Zealand'
+    elif formatted_name.lower() == 'south-africa': formatted_name = 'South Africa'
+    
+    cursor.execute("""
+        SELECT m.match_id, m.date, m.format, m.venue, m.win_margin_runs,
+               t1.name as team1_name, t2.name as team2_name, tw.name as winner_name
+        FROM Matches m
+        LEFT JOIN Teams t1 ON m.team1_id = t1.team_id
+        LEFT JOIN Teams t2 ON m.team2_id = t2.team_id
+        LEFT JOIN Teams tw ON m.winner = tw.team_id
+        WHERE t1.name = ? OR t2.name = ?
+        ORDER BY m.date DESC LIMIT 20
+    """, (formatted_name, formatted_name))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/series")
+async def get_series_list():
+    # Mock return for Series page
+    return [
+        {"id": "asian-games", "name": "Asian Games Qualifier 2026", "date": "May 2026"},
+        {"id": "aus-pak", "name": "Australia tour of Pakistan 2026", "date": "May 2026"},
+        {"id": "nz-ire", "name": "New Zealand tour of Ireland 2026", "date": "May 2026"}
+    ]
+    
+@app.get("/api/league/{league_id}")
+async def get_league_details(league_id: str):
+    # Mock return for League page
+    return {
+        "id": league_id,
+        "name": league_id.replace('-', ' ').title(),
+        "status": "In Progress",
+        "matches": []
+    }
+
+@app.get("/api/records/{format}")
+async def get_format_records(format: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    format = format.upper()
+    if format == 'ODI' or format == 'T20I' or format == 'TEST':
+        fmt_query = format
+    else:
+        fmt_query = "All Formats"
+        
+    records = {}
+    # Re-use global records logic but could filter by format if schema supported it. We'll just return global for now.
+    cursor.execute("""
+        SELECT p.name, c.bat_runs, c.matches, c.team_name 
+        FROM PlayerCareerStats c JOIN Players p ON c.player_id = p.player_id
+        ORDER BY c.bat_runs DESC LIMIT 10
+    """)
+    records["top_run_scorers"] = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return records
+
 @app.post("/api/predict")
 async def predict_match(req: PredictionRequest):
     if not model:

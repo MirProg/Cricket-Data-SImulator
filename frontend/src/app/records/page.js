@@ -1,127 +1,178 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 export default function RecordsHub() {
-  const [records, setRecords] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [openAccordion, setOpenAccordion] = useState("Most wickets");
 
-  useEffect(() => {
-    const fetchRecords = async () => {
-      try {
-        const res = await fetch("http://localhost:8000/api/records");
-        if (res.ok) {
-          setRecords(await res.json());
-        }
-      } catch (err) {
-        console.error("Failed to fetch records", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRecords();
-  }, []);
+  const toggleAccordion = (title) => {
+    setOpenAccordion(openAccordion === title ? null : title);
+  };
 
-  if (loading) return <div className="p-12 text-center text-gray-500">Loading global records...</div>;
-  if (!records) return <div className="p-12 text-center text-red-500">Failed to load records.</div>;
+  const recordsData = [
+    {
+      title: "Most wickets",
+      links: [
+        "Most wickets in career", "Best figures in an innings", "Best figures in a match",
+        "Most wickets in a series", "Most wickets in a calendar year", "Outstanding bowling analyses in an innings",
+        "Most wickets on a single ground", "Best figures in a innings by a captain", 
+        "Best figures in a match by a captain", "Best figures in a innings when on the losing side", 
+        "Best figures in a match when on the losing side"
+      ]
+    },
+    {
+      title: "Averages, strike rates and economy",
+      links: [
+        "Best career bowling average", "Best career economy rate", "Best career strike rate",
+        "Best career bowling average (without qualification)", "Best economy rate in an innings",
+        "Best strike rate in an innings", "Worst career bowling average", "Worst career economy rate",
+        "Worst career strike rate", "Worst career bowling average (without qualification)",
+        "Worst economy rate in an innings", "Worst strike rate in an innings"
+      ]
+    },
+    {
+      title: "Debuts and last match",
+      links: ["Best figures in a innings on debut", "Best figures in a match on debut"]
+    },
+    {
+      title: "Hauls",
+      links: [
+        "Most five-wickets-in-an-innings in a career", "Most ten-wickets-in-a-match in a career",
+        "Most consecutive five-wickets-in-an-innings", "Most consecutive ten-wickets-in-a-match",
+        "Youngest player to take five-wickets-in-an-innings", "Youngest player to take ten-wickets-in-a-match",
+        "Oldest player to take five-wickets-in-an-innings", "Oldest player to take ten-wickets-in-a-match",
+        "Oldest player to take a maiden five-wickets-in-an-innings"
+      ]
+    },
+    {
+      title: "Most balls bowled",
+      links: ["Most balls bowled in career", "Most balls bowled in an innings", "Most balls bowled in a match"]
+    },
+    {
+      title: "Most runs conceded",
+      links: ["Most runs conceded in career", "Most runs conceded in an innings", "Most runs conceded in a match"]
+    },
+    {
+      title: "Hat-tricks and similar",
+      links: ["Hat-tricks", "Four wickets in five balls", "Three wickets in four balls"]
+    },
+    {
+      title: "Dismissals",
+      links: [
+        "Bowler/Batter combinations", "Bowler/fielder combinations", "Most wickets taken bowled",
+        "Most wickets taken caught", "Most wickets taken caught and bowled", "Most wickets taken caught by a fielder",
+        "Most wickets taken caught by a wicketkeeper", "Most wickets taken lbw", "Most wickets taken stumped",
+        "Most wickets taken hit wicket"
+      ]
+    },
+    {
+      title: "Miscellaneous",
+      links: [
+        "Wicket with first ball in career", "Dismissing all eleven batters in a match",
+        "Bowlers unchanged in a completed innings", "No-balled for throwing"
+      ]
+    },
+    {
+      title: "Fastest career wickets",
+      links: [
+        "Fastest to 50 wickets", "Fastest to 100 wickets", "Fastest to 150 wickets", "Fastest to 200 wickets",
+        "Fastest to 250 wickets", "Fastest to 300 wickets", "Fastest to 350 wickets", "Fastest to 400 wickets",
+        "Fastest to 450 wickets", "Fastest to 500 wickets", "Fastest to 600 wickets", "Fastest to 700 wickets",
+        "Fastest to 750 wickets", "Fastest to 800 wickets"
+      ]
+    }
+  ];
 
   return (
-    <div className="py-8 px-4 sm:px-0">
+    <div className="py-6 px-4 bg-[#f8fafc] min-h-screen">
       
-      <div className="mb-10 text-center">
-        <h1 className="text-3xl font-bold text-gray-900">Global Records Hub</h1>
-        <p className="text-gray-600 mt-2">The pinnacle of cricketing achievements across all formats.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        
-        {/* Top Run Scorers */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-          <div className="bg-blue-600 text-white px-4 py-3">
-            <h3 className="font-bold text-lg">Most Career Runs</h3>
-          </div>
-          <div className="p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 w-8">#</th>
-                  <th className="px-4 py-3">Player</th>
-                  <th className="px-4 py-3 text-right">Runs</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {records.top_run_scorers?.map((player, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400 font-mono">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-blue-600 hover:underline">
-                      <Link href={`/player/${player.name}`}>{player.name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-800">{player.bat_runs}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Top Wicket Takers */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-          <div className="bg-emerald-600 text-white px-4 py-3">
-            <h3 className="font-bold text-lg">Most Career Wickets</h3>
-          </div>
-          <div className="p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 w-8">#</th>
-                  <th className="px-4 py-3">Player</th>
-                  <th className="px-4 py-3 text-right">Wkts</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {records.top_wicket_takers?.map((player, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400 font-mono">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-blue-600 hover:underline">
-                      <Link href={`/player/${player.name}`}>{player.name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-800">{player.bowl_wickets}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="flex gap-6 max-w-7xl mx-auto">
+        {/* Main Content (Accordions) */}
+        <div className="flex-grow">
+          <div className="bg-white border border-gray-200 rounded shadow-sm">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h2 className="font-bold text-gray-800 text-lg">Bowling records</h2>
+            </div>
+            
+            <div className="divide-y divide-gray-100">
+              {recordsData.map((category, idx) => (
+                <div key={idx} className="bg-white">
+                  <button 
+                    onClick={() => toggleAccordion(category.title)}
+                    className="w-full flex justify-between items-center px-4 py-3 text-left hover:bg-gray-50"
+                  >
+                    <span className="text-xs font-black text-gray-700 tracking-wider uppercase">
+                      {category.title}
+                    </span>
+                    <span className="text-gray-400 text-xs">
+                      {openAccordion === category.title ? "▲" : "▼"}
+                    </span>
+                  </button>
+                  
+                  {openAccordion === category.title && (
+                    <div className="bg-white border-t border-gray-100">
+                      <ul className="divide-y divide-gray-50">
+                        {category.links.map((link, linkIdx) => (
+                          <li key={linkIdx}>
+                            <Link 
+                              href={`/records/query?type=${encodeURIComponent(link)}`}
+                              className="block px-6 py-2.5 text-sm text-blue-600 hover:underline hover:bg-blue-50"
+                            >
+                              {link}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Highest Averages */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-          <div className="bg-purple-600 text-white px-4 py-3">
-            <h3 className="font-bold text-lg">Highest Batting Average</h3>
+        {/* Right Sidebar */}
+        <div className="w-72 flex-shrink-0 flex flex-col gap-6">
+          
+          {/* Categories Sidebar */}
+          <div className="bg-white border border-gray-200 rounded shadow-sm">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h3 className="font-bold text-gray-800 text-sm">Test matches</h3>
+            </div>
+            <ul className="text-sm divide-y divide-gray-50">
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">Team records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">Batting records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 font-bold bg-blue-50 text-blue-700 cursor-pointer border-l-4 border-blue-600">Bowling records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">Wicketkeeping records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">Fielding records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">All-round records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">Partnership records</li>
+              <li className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer">Individual records (captains, players, umpires)</li>
+            </ul>
           </div>
-          <div className="p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 w-8">#</th>
-                  <th className="px-4 py-3">Player</th>
-                  <th className="px-4 py-3 text-right">Avg</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {records.highest_averages?.map((player, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-400 font-mono">{idx + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-blue-600 hover:underline">
-                      <Link href={`/player/${player.name}`}>{player.name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-800">{player.bat_avg ? player.bat_avg.toFixed(2) : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
+          {/* Overall Records Sidebar */}
+          <div className="bg-white border border-gray-200 rounded shadow-sm">
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+              <h3 className="font-bold text-gray-800 text-sm">Overall Records</h3>
+            </div>
+            <ul className="text-sm divide-y divide-gray-50 text-blue-600">
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">Test</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">ODI</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">T20I</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">FC</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">LA</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">T20</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">Women Test</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">Women ODI</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">Women T20I</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">Test+ODI+T20I</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">FC+LA+T20</li>
+              <li className="px-4 py-2 hover:bg-blue-50 cursor-pointer hover:underline">All</li>
+            </ul>
+          </div>
+
+        </div>
       </div>
     </div>
   );
