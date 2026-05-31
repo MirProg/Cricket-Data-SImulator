@@ -20,3 +20,4 @@ ENV/
 .vscode/
 .idea/
 *.sqlite
+data/raw_ca/
