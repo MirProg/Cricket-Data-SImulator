@@ -3,27 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket AI Simulator</title>
+    <title>Cricket Stats Hub & AI Simulator</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="glass-container">
         <header>
             <div class="logo">
-                <span class="ai-badge">AI</span>
-                <h1>Cricket Simulator</h1>
+                <span class="ai-badge">PRO</span>
+                <h1>Cricket Stats Hub</h1>
             </div>
             <nav>
-                <button class="nav-btn active" data-target="simulation">Simulation</button>
-                <button class="nav-btn" data-target="live">Live Matches</button>
-                <button class="nav-btn" data-target="database">Database</button>
+                <button class="nav-btn active" data-target="dashboard">Dashboard</button>
+                <button class="nav-btn" data-target="matches">Matches</button>
+                <button class="nav-btn" data-target="players">Players</button>
+                <button class="nav-btn" data-target="records">Records</button>
+                <button class="nav-btn" data-target="simulation">AI Simulator</button>
             </nav>
         </header>
 
-        <main id="simulation-view" class="view active">
+        <!-- DASHBOARD VIEW -->
+        <main id="dashboard-view" class="view active">
+            <div class="dashboard-hero">
+                <h2>Welcome to Cricket Stats Hub</h2>
+                <p>Explore parsed scorecard details, player aggregate statistics, and run virtual simulations using historical data.</p>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Matches Scraped</span>
+                        <span class="stat-value" id="db-stat-matches">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Active Players</span>
+                        <span class="stat-value" id="db-stat-players">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Teams Profiled</span>
+                        <span class="stat-value" id="db-stat-teams">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Tournaments</span>
+                        <span class="stat-value" id="db-stat-tournaments">0</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- MATCHES BROWSER VIEW -->
+        <main id="matches-view" class="view" style="display: none;">
+            <div class="sidebar-filters">
+                <h3>Filter Matches</h3>
+                <div class="form-group">
+                    <label>Format</label>
+                    <select id="match-filter-format">
+                        <option value="">All Formats</option>
+                        <option value="T20">T20 (Twenty20)</option>
+                        <option value="List A">List A (ODI)</option>
+                        <option value="First-Class">First-Class (Test)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Team</label>
+                    <select id="match-filter-team">
+                        <option value="">All Teams</option>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Year</label>
+                    <input type="text" id="match-filter-year" placeholder="e.g., 2025" class="text-input">
+                </div>
+                <div class="form-group">
+                    <label>Search Text</label>
+                    <input type="text" id="match-filter-search" placeholder="Venue, Team Name, etc." class="text-input">
+                </div>
+                <button id="apply-filters-btn" class="secondary-btn" style="width: 100%;">Apply Filters</button>
+            </div>
+
+            <div class="content-panel">
+                <div class="panel-header">
+                    <h2>Match scorecards</h2>
+                    <span class="total-count" id="matches-total-count">Showing 0 matches</span>
+                </div>
+                <div class="matches-grid" id="matches-list-container">
+                    <!-- Populated dynamically -->
+                </div>
+                <div class="pagination" id="matches-pagination">
+                    <!-- Dynamic page buttons -->
+                </div>
+            </div>
+        </main>
+
+        <!-- PLAYERS EXPLORER VIEW -->
+        <main id="players-view" class="view" style="display: none;">
+            <div class="sidebar-filters">
+                <h3>Search Player</h3>
+                <div class="search-box-container">
+                    <input type="text" id="player-search-input" placeholder="Type player name (min 2 chars)..." class="text-input">
+                </div>
+                <div class="search-results-list" id="player-search-results">
+                    <!-- List of matching players -->
+                    <div class="info-text">Type player name to begin...</div>
+                </div>
+            </div>
+
+            <div class="content-panel" id="player-profile-panel" style="display: none;">
+                <div class="player-profile-header">
+                    <div class="player-avatar">🏏</div>
+                    <div>
+                        <h2 id="player-profile-name">Player Name</h2>
+                        <p class="dob" id="player-profile-dob">DOB: -</p>
+                    </div>
+                </div>
+
+                <div class="stats-tabs">
+                    <button class="stats-tab-btn active" data-format="T20">T20</button>
+                    <button class="stats-tab-btn" data-format="List A">List A</button>
+                    <button class="stats-tab-btn" data-format="First-Class">First-Class</button>
+                </div>
+
+                <div class="player-career-stats">
+                    <div class="stats-tables-container">
+                        <div class="stats-col">
+                            <h4>Batting Statistics</h4>
+                            <table class="data-table tiny">
+                                <tbody>
+                                    <tr><td>Matches</td><td class="val" id="p-bat-matches">-</td></tr>
+                                    <tr><td>Innings</td><td class="val" id="p-bat-innings">-</td></tr>
+                                    <tr><td>Runs</td><td class="val" id="p-bat-runs">-</td></tr>
+                                    <tr><td>Average</td><td class="val" id="p-bat-avg">-</td></tr>
+                                    <tr><td>Strike Rate</td><td class="val" id="p-bat-sr">-</td></tr>
+                                    <tr><td>Highest Score</td><td class="val" id="p-bat-hs">-</td></tr>
+                                    <tr><td>Not Outs</td><td class="val" id="p-bat-no">-</td></tr>
+                                    <tr><td>Hundreds (100s)</td><td class="val" id="p-bat-100s">-</td></tr>
+                                    <tr><td>Fifties (50s)</td><td class="val" id="p-bat-50s">-</td></tr>
+                                    <tr><td>Fours (4s)</td><td class="val" id="p-bat-4s">-</td></tr>
+                                    <tr><td>Sixes (6s)</td><td class="val" id="p-bat-6s">-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="stats-col">
+                            <h4>Bowling Statistics</h4>
+                            <table class="data-table tiny">
+                                <tbody>
+                                    <tr><td>Innings</td><td class="val" id="p-bowl-innings">-</td></tr>
+                                    <tr><td>Overs</td><td class="val" id="p-bowl-overs">-</td></tr>
+                                    <tr><td>Maidens</td><td class="val" id="p-bowl-maidens">-</td></tr>
+                                    <tr><td>Runs Conceded</td><td class="val" id="p-bowl-runs">-</td></tr>
+                                    <tr><td>Wickets</td><td class="val" id="p-bowl-wickets">-</td></tr>
+                                    <tr><td>Average</td><td class="val" id="p-bowl-avg">-</td></tr>
+                                    <tr><td>Economy</td><td class="val" id="p-bowl-econ">-</td></tr>
+                                    <tr><td>Strike Rate</td><td class="val" id="p-bowl-sr">-</td></tr>
+                                    <tr><td>5W Hauls</td><td class="val" id="p-bowl-5w">-</td></tr>
+                                    <tr><td>Best Bowling</td><td class="val" id="p-bowl-best">-</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="player-recent-matches">
+                    <h3>Recent Match Appearances</h3>
+                    <div class="recent-matches-grid" id="player-recent-matches-container">
+                        <!-- Dynamic list -->
+                    </div>
+                </div>
+            </div>
+            <div class="content-panel no-selection" id="player-profile-placeholder">
+                <div class="placeholder-content">
+                    <span>👤</span>
+                    <p>Select a player from the search results to view their full profile and career stats.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- RECORDS VIEW -->
+        <main id="records-view" class="view" style="display: none;">
+            <div class="sidebar-filters">
+                <h3>Select Leaderboard</h3>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="record-category-select">
+                        <option value="most_runs">Most Career Runs</option>
+                        <option value="highest_score">Highest Individual Scores</option>
+                        <option value="most_wickets">Most Career Wickets</option>
+                        <option value="best_bowling">Best Bowling Figures</option>
+                        <option value="highest_totals">Highest Innings Totals</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Format</label>
+                    <select id="record-format-select">
+                        <option value="T20">T20 (Twenty20)</option>
+                        <option value="List A">List A (ODI)</option>
+                        <option value="First-Class">First-Class (Test)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="content-panel">
+                <div class="panel-header">
+                    <h2 id="records-panel-title">Most Career Runs</h2>
+                </div>
+                <div class="records-table-container">
+                    <table class="data-table" id="records-table">
+                        <!-- Headers and rows injected dynamically -->
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- SIMULATOR VIEW (Original Integrated) -->
+        <main id="simulation-view" class="view" style="display: none;">
             <div class="setup-panel">
-                <h2>New Match</h2>
+                <h2>Match Simulation</h2>
                 <div class="form-group">
                     <label>Team 1</label>
                     <select id="team1-select"><option>Loading...</option></select>
@@ -65,24 +259,19 @@
                 </div>
             </div>
         </main>
+    </div>
 
-        <main id="live-view" class="view" style="display: none;">
-            <h2>Live Real-World Matches</h2>
-            <div class="live-matches-grid" id="live-matches-grid">
-                <div class="loader">Fetching live data from ESPN API...</div>
+    <!-- SCORECARD MODAL OVERLAY -->
+    <div class="modal-overlay" id="scorecard-modal" style="display: none;">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="modal-match-title">Match Scorecard</h2>
+                <button class="close-btn" id="close-modal-btn">&times;</button>
+            </header>
+            <div class="modal-body" id="modal-match-body">
+                <!-- Detailed scorecard details will be injected here -->
             </div>
-        </main>
-
-        <main id="database-view" class="view" style="display: none;">
-            <h2>Domestic & International Database</h2>
-            <div class="db-controls">
-                <button class="secondary-btn" id="fetch-domestic-btn">Download Domestic Teams</button>
-                <p class="help-text">ESPN Data includes FC, List A, and T20 franchises.</p>
-            </div>
-            <div class="teams-grid" id="teams-grid">
-                <!-- Teams list injected here -->
-            </div>
-        </main>
+        </div>
     </div>
     
     <script src="/static/js/main.js"></script>

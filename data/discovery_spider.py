@@ -1,10 +1,6 @@
-import requests
 import sqlite3
-import re
 import logging
 import time
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - DISCOVERY - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -21,33 +17,46 @@ def setup_db():
     conn.commit()
     return conn
 
-def extract_match_id(url: str):
-    # e.g., /Archive/Scorecards/1426/1426957.html
-    match = re.search(r'/Scorecards/\d+/(\d+)\.html', url)
-    if match:
-        return match.group(1)
-    return None
-
 def run_discovery():
-    logger.info("Starting Discovery Spider...")
+    logger.info("Starting Massive Discovery Spider...")
     conn = setup_db()
+    cursor = conn.cursor()
     
-    # We will seed the queue with a massive block of 100,000 IDs for the multithreaded load balancer
-    base_id = 1410000 # Seed block
-    new_matches = 0
+    # We will seed the queue with all possible CricketArchive Match IDs (1 to 1,500,000)
+    # Using batch inserts for extreme performance
     
-    for i in range(100000):
-        ca_match_id = str(base_id + i)
+    BATCH_SIZE = 100000
+    total_new = 0
+    
+    logger.info("Generating 1,500,000 match IDs...")
+    
+    start_time = time.time()
+    
+    for chunk_start in range(1, 1500001, BATCH_SIZE):
+        chunk_end = min(chunk_start + BATCH_SIZE, 1500001)
+        
+        batch_data = [(str(i), 'PENDING') for i in range(chunk_start, chunk_end)]
         
         try:
-            conn.execute('INSERT INTO CrawlQueue (ca_match_id, status) VALUES (?, ?)', (ca_match_id, 'PENDING'))
-            new_matches += 1
-        except sqlite3.IntegrityError:
-            pass
+            # INSERT OR IGNORE allows us to skip already queued matches instantly
+            cursor.executemany('''
+                INSERT OR IGNORE INTO CrawlQueue (ca_match_id, status) 
+                VALUES (?, ?)
+            ''', batch_data)
+            conn.commit()
             
-    conn.commit()
+            inserted = cursor.rowcount
+            total_new += inserted
+            logger.info(f"Processed chunk {chunk_start} to {chunk_end-1}. Inserted new rows: {inserted}")
+            
+        except sqlite3.Error as e:
+            logger.error(f"Database error during batch insert: {e}")
+            conn.rollback()
+            
     conn.close()
-    logger.info(f"Discovery complete. Added {new_matches} new matches to the CrawlQueue.")
+    
+    elapsed = time.time() - start_time
+    logger.info(f"Massive Discovery complete in {elapsed:.2f}s. Added {total_new} new matches to the CrawlQueue.")
 
 if __name__ == "__main__":
     run_discovery()
