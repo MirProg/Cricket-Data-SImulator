@@ -3,8 +3,10 @@ import json
 import time
 import random
 import logging
+import threading
 from bs4 import BeautifulSoup
-from playwright.sync_api import sync_playwright
+from curl_cffi import requests
+from curl_cffi.requests.exceptions import RequestException
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Logger setup
@@ -15,6 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DB_PATH = 'data/espn_history_db.jsonl'
+LOCK = threading.Lock()
 
 def load_scraped_ids():
     scraped = set()
@@ -30,47 +33,48 @@ def load_scraped_ids():
                     pass
     return scraped
 
-def fetch_espn_match(match_id: str):
-    # Cricinfo redirects if we use a placeholder series ID "s"
-    url = f"https://www.espncricinfo.com/series/s/match/{match_id}/full-scorecard"
-    
-    try:
-        with sync_playwright() as p:
-            # Launch browser
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            page = context.new_page()
-            
-            # Navigate
-            response = page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            
-            if response and response.status == 200:
-                html = page.content()
-                soup = BeautifulSoup(html, 'html.parser')
-                title_tag = soup.find('title')
-                title = title_tag.text if title_tag else "Unknown Match"
+class ESPNCrawler:
+    def __init__(self):
+        pass
+
+    def fetch_match(self, match_id: str, retries=3):
+        url = f"https://www.espncricinfo.com/matches/engine/match/{match_id}.html"
+        for attempt in range(retries):
+            try:
+                # Impersonate Chrome browser to bypass Akamai bot detection
+                response = requests.get(url, impersonate='chrome120', timeout=15)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    title_tag = soup.find('title')
+                    title = title_tag.text if title_tag else "Unknown Match"
+                    
+                    if "scorecard" in response.text.lower() or "scorecard" in response.url.lower():
+                        match_data = {
+                            "source": "espn",
+                            "match_id": str(match_id),
+                            "title": title.strip(),
+                            "url": response.url,
+                            "status": "Scraped",
+                            "timestamp": time.time()
+                        }
+                        return True, match_data
+                    return False, None
+                elif response.status_code == 404:
+                    return False, None
                 
-                # Check if it has scorecard tables
-                if "scorecard" in html.lower():
-                    match_data = {
-                        "source": "espn",
-                        "match_id": str(match_id),
-                        "title": title.strip(),
-                        "url": url,
-                        "status": "Scraped",
-                        "timestamp": time.time()
-                    }
-                    browser.close()
-                    return True, match_data
-            
-            browser.close()
-            return False, None
-    except Exception:
+                # If status code is 403 or other errors, wait and retry
+                time.sleep(random.uniform(1.0, 3.0))
+            except RequestException as e:
+                # Catch connection resets, timeouts, etc. and retry
+                if attempt == retries - 1:
+                    logger.debug(f"Failed to fetch {match_id} after {retries} attempts: {e}")
+                    return False, None
+                time.sleep(random.uniform(2.0, 5.0))
+            except Exception:
+                return False, None
         return False, None
 
-def crawl_espn_range(start_id=1300000, end_id=1310000, max_threads=4):
+def crawl_espn_range(start_id=1359400, end_id=1360000, max_threads=30):
     scraped_ids = load_scraped_ids()
     logger.info(f"Loaded {len(scraped_ids)} already scraped ESPN matches.")
     
@@ -82,24 +86,29 @@ def crawl_espn_range(start_id=1300000, end_id=1310000, max_threads=4):
         logger.info("No pending ESPN IDs to crawl in this range.")
         return
         
+    crawler = ESPNCrawler()
     success_count = 0
     
-    # Since Playwright consumes resources, we limit to max_threads (e.g. 4)
+    # Use 30 threads for concurrent requests
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        futures = {executor.submit(fetch_espn_match, mid): mid for mid in pending}
+        futures = {executor.submit(crawler.fetch_match, mid): mid for mid in pending}
         
         for future in as_completed(futures):
             mid = futures[future]
             try:
                 success, data = future.result()
                 if success and data:
-                    with open(DB_PATH, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(data, ensure_ascii=False) + '\n')
+                    with LOCK:
+                        with open(DB_PATH, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(data, ensure_ascii=False) + '\n')
                     success_count += 1
-                    logger.info(f"Scraped new ESPN match: {mid} - {data['title'][:60]}")
-            except Exception as e:
+                    if success_count % 10 == 0:
+                        logger.info(f"Concurrently scraped {success_count} new ESPN matches...")
+            except Exception:
                 pass
 
+    logger.info(f"ESPN crawl cycle complete. Successfully scraped {success_count} new matches.")
+
 if __name__ == "__main__":
-    # Start scanning from 1300000 to 1310000 with 4 Playwright workers
-    crawl_espn_range(start_id=1300000, end_id=1310000, max_threads=4)
+    # Start scanning from 1359400 to 1360000 with 30 curl_cffi threads
+    crawl_espn_range(start_id=1359400, end_id=1360000, max_threads=30)
