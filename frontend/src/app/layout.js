@@ -1,5 +1,6 @@
 import "./globals.css";
 import Link from "next/link";
+import Sidebar from "../components/Sidebar";
 
 export const metadata = {
   title: "Cricket Database Portal",
@@ -47,10 +48,13 @@ export default function RootLayout({ children }) {
           </div>
         </nav>
 
-        {/* Page Content */}
-        <main className="flex-grow w-full max-w-7xl mx-auto">
-          {children}
-        </main>
+        {/* Page Content with Sidebar */}
+        <div className="flex flex-grow w-full max-w-7xl mx-auto">
+          <Sidebar />
+          <main className="flex-grow w-full lg:ml-6 min-h-screen pb-12">
+            {children}
+          </main>
+        </div>
         
         {/* Footer */}
         <footer className="w-full bg-white border-t border-gray-200 py-6 text-center text-gray-500 text-sm mt-auto">
