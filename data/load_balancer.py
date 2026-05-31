@@ -66,21 +66,21 @@ class DistributedScraperEngine:
         db_lock = threading.Lock()
         
         while True:
-            # Fetch up to 100 pending matches per chunk for maximum throttle
-            cursor = conn.execute("SELECT ca_match_id FROM CrawlQueue WHERE status='PENDING' LIMIT 100")
+            # Fetch up to 300 pending matches per chunk for maximum throttle
+            cursor = conn.execute("SELECT ca_match_id FROM CrawlQueue WHERE status='PENDING' LIMIT 300")
             pending_matches = cursor.fetchall()
             
             if not pending_matches:
                 logger.info("CrawlQueue is empty! No pending matches found.")
                 break
                 
-            logger.info(f"Dispatching {len(pending_matches)} matches to ThreadPoolExecutor (50 threads)...")
+            logger.info(f"Dispatching {len(pending_matches)} matches to ThreadPoolExecutor (300 threads)...")
             
             def scrape_worker(ca_id):
                 success = self.cricketarchive.fetch_match(ca_id)
                 return ca_id, success
             
-            with ThreadPoolExecutor(max_workers=100) as executor:
+            with ThreadPoolExecutor(max_workers=300) as executor:
                 futures = {executor.submit(scrape_worker, ca_id[0]): ca_id[0] for ca_id in pending_matches}
                 
                 banned = False
