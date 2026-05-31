@@ -80,23 +80,57 @@ class DistributedScraperEngine:
                 success = self.cricketarchive.fetch_match(ca_id)
                 return ca_id, success
             
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=100) as executor:
                 futures = {executor.submit(scrape_worker, ca_id[0]): ca_id[0] for ca_id in pending_matches}
                 
+                banned = False
                 for future in as_completed(futures):
                     ca_id, success = future.result()
+                    if success == "BANNED":
+                        banned = True
+                        with db_lock:
+                            conn.execute("UPDATE CrawlQueue SET status='PENDING' WHERE ca_match_id=?", (ca_id,))
+                        continue
+                    elif success == "RETRY":
+                        with db_lock:
+                            conn.execute("UPDATE CrawlQueue SET status='PENDING' WHERE ca_match_id=?", (ca_id,))
+                        continue
+                        
                     with db_lock:
                         if success:
                             conn.execute("UPDATE CrawlQueue SET status='COMPLETED' WHERE ca_match_id=?", (ca_id,))
                         else:
                             conn.execute("UPDATE CrawlQueue SET status='FAILED' WHERE ca_match_id=?", (ca_id,))
+                            
+            if banned:
+                logger.error("\n*** CLOUDFLARE BAN DETECTED! ***")
+                logger.error("Automating IP rotation using Cloudflare WARP...")
+                import subprocess
+                
+                logger.info("Disconnecting WARP...")
+                subprocess.run(["C:\\Program Files\\Cloudflare\\Cloudflare WARP\\warp-cli.exe", "disconnect"], check=False)
+                time.sleep(3)
+                
+                logger.info("Reconnecting WARP for a fresh IP...")
+                subprocess.run(["C:\\Program Files\\Cloudflare\\Cloudflare WARP\\warp-cli.exe", "connect"], check=False)
+                
+                # Wait for connection to establish and verify new IP works
+                import requests
+                while True:
+                    time.sleep(5)
+                    try:
+                        r = requests.get('https://cricketarchive.com/Archive/Scorecards/1426/1426957.html', 
+                                         headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+                        if r.status_code == 200:
+                            logger.info("\n*** NEW WARP IP ACQUIRED! RESUMING FULL THROTTLE AT 100 THREADS! ***")
+                            break
+                    except Exception as e:
+                        logger.warning(f"Waiting for network connection... {e}")
+                        pass
                         
             # Commit the entire batch
             conn.commit()
             logger.info("Batch processed and committed.")
-            
-            # 2 second cooldown to avoid Cloudflare ban
-            time.sleep(2)
             
         conn.close()
 

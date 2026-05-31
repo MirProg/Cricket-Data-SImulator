@@ -52,6 +52,22 @@ class CricketArchiveSpider:
                 
             return True
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                logger.error(f"CricketArchive 403 Forbidden for {match_id}. IP BANNED.")
+                return "BANNED"
+            elif e.response.status_code == 404:
+                logger.error(f"CricketArchive 404 Not Found for {match_id}.")
+                return False
+            logger.error(f"CricketArchive HTTPError for {match_id}: {e}")
+            return "RETRY"
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.ChunkedEncodingError) as e:
+            logger.error(f"CricketArchive network error for {match_id}: {e}")
+            return "RETRY"
         except Exception as e:
             logger.error(f"CricketArchive Spider failed for {match_id}: {e}")
+            # Treat SSL unexpected EOF, connection resets, etc. as transient retryable issues
+            err_str = str(e).lower()
+            if "eof" in err_str or "connection" in err_str or "reset" in err_str or "handshake" in err_str:
+                return "RETRY"
             return False
