@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SimulatorPage from './Simulator'
 import './index.css'
 
 interface Match {
@@ -17,6 +18,7 @@ interface Match {
 function App() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('database');
 
   const [status, setStatus] = useState<any>(null);
 
@@ -52,13 +54,32 @@ function App() {
     <div className="max-w-7xl mx-auto py-10 px-5">
       <header className="text-center mb-10">
         <h1 className="text-5xl font-extrabold bg-gradient-to-r from-primary to-[#0096ff] bg-clip-text text-transparent mb-2">
-          Ultimate Cricket Hub
+          CricMatrix Platform
         </h1>
-        <p className="text-text-secondary text-lg">The definitive archive of every cricket match in history.</p>
+        <p className="text-text-secondary text-lg">The definitive archive and simulation engine.</p>
+        
+        <div className="flex justify-center gap-4 mt-8">
+          <button 
+            onClick={() => setActiveTab('database')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'database' ? 'bg-primary text-black' : 'bg-bg-dark text-slate-400 border border-slate-700'}`}
+          >
+            Database Portal
+          </button>
+          <button 
+            onClick={() => setActiveTab('simulator')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'simulator' ? 'bg-[#3B82F6] text-white' : 'bg-bg-dark text-slate-400 border border-slate-700'}`}
+          >
+            AI Simulator
+          </button>
+        </div>
       </header>
 
+      {activeTab === 'simulator' ? (
+        <SimulatorPage />
+      ) : (
+        <>
       {/* Live Spider Dashboard */}
-      {status && (
+      {status && status.database && (
         <div className="mb-12 bg-glass-bg backdrop-blur-md border border-primary/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(0,255,204,0.15)] relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-[#0096ff] animate-pulse"></div>
           <h2 className="text-2xl font-bold mb-4 flex items-center">
@@ -68,11 +89,11 @@ function App() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="bg-bg-dark rounded-lg p-4 border border-glass-border text-center">
               <div className="text-text-secondary text-sm mb-1">Total Matches Ingested</div>
-              <div className="text-3xl font-bold text-primary">{status.database.total_matches.toLocaleString()}</div>
+              <div className="text-3xl font-bold text-primary">{status.database.total_matches?.toLocaleString() || 0}</div>
             </div>
             <div className="bg-bg-dark rounded-lg p-4 border border-glass-border text-center">
               <div className="text-text-secondary text-sm mb-1">Total Deliveries Mapped</div>
-              <div className="text-3xl font-bold text-primary">{status.database.total_balls_delivered.toLocaleString()}</div>
+              <div className="text-3xl font-bold text-primary">{status.database.total_balls_delivered?.toLocaleString() || 0}</div>
             </div>
             <div className="bg-bg-dark rounded-lg p-4 border border-glass-border text-center">
               <div className="text-text-secondary text-sm mb-1">Network Scraper Protocol</div>
@@ -114,6 +135,8 @@ function App() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   )

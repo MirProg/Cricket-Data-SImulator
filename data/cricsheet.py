@@ -75,6 +75,12 @@ def process_cricsheet_scorecards():
             "win_margin_wickets": info.get("outcome", {}).get("by", {}).get("wickets", 0)
         }
         
+        from orchestrator import register_match
+        is_new = register_match(team1, team2, sql_match["date"], sql_match["format"], "cricsheet", cricinfo_id)
+        
+        if not is_new:
+            continue
+            
         # Parse innings and balls
         sql_balls = []
         innings_list = match_data.get("innings", [])

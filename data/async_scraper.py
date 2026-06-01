@@ -170,9 +170,23 @@ def run_scraper(limit=None):
         
         # Handle banning
         if banned > 0:
-            logger.warning("Cloudflare 403 BAN detected! Halting scraper to prevent permanent blacklist.")
-            logger.warning("You must implement IP rotation (e.g. Warp VPN) or delay execution.")
-            break
+            logger.warning(f"Cloudflare 403 BAN detected ({banned} requests blocked).")
+            logger.info("Executing user strategy: Automatically rotating Cloudflare WARP IP...")
+            
+            # Requeue banned matches
+            conn2 = sqlite3.connect(DB_PATH, timeout=60.0)
+            conn2.execute("UPDATE CrawlQueue SET status = 'PENDING' WHERE status = 'BANNED'")
+            conn2.commit()
+            conn2.close()
+            
+            # Rotate IP via WARP CLI
+            os.system("warp-cli disconnect")
+            time.sleep(2)
+            os.system("warp-cli connect")
+            time.sleep(5) # Wait for new IP to establish
+            
+            logger.info("IP successfully rotated. Resuming scrape...")
+            continue
             
     conn.close()
 

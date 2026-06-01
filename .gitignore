@@ -24,3 +24,5 @@ ENV/
 *.sqlite-wal
 *.sqlite-shm
 data/raw_ca/
+node_modules/
+*.db
