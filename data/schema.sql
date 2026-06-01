@@ -193,29 +193,35 @@ CREATE TABLE IF NOT EXISTS PlayerCareerStats (
     
     -- Batting Stats
     bat_innings INTEGER DEFAULT 0,
+    not_outs INTEGER DEFAULT 0,
     bat_runs INTEGER DEFAULT 0,
-    bat_avg REAL,
-    bat_sr REAL,
     highest_score INTEGER DEFAULT 0,
     highest_score_not_out BOOLEAN DEFAULT 0,
-    fifties INTEGER DEFAULT 0,
+    bat_avg REAL,
+    balls_faced INTEGER DEFAULT 0,
+    bat_sr REAL,
     hundreds INTEGER DEFAULT 0,
+    fifties INTEGER DEFAULT 0,
     fours INTEGER DEFAULT 0,
     sixes INTEGER DEFAULT 0,
-    not_outs INTEGER DEFAULT 0,
+    catches INTEGER DEFAULT 0,
+    stumpings INTEGER DEFAULT 0,
     
     -- Bowling Stats
     bowl_innings INTEGER DEFAULT 0,
-    bowl_overs REAL DEFAULT 0.0,
-    bowl_maidens INTEGER DEFAULT 0,
+    bowl_balls INTEGER DEFAULT 0,
     bowl_runs INTEGER DEFAULT 0,
     bowl_wickets INTEGER DEFAULT 0,
+    best_bowl_innings TEXT DEFAULT '-',
+    best_bowl_match TEXT DEFAULT '-',
     bowl_avg REAL,
     bowl_econ REAL,
     bowl_sr REAL,
+    four_wickets INTEGER DEFAULT 0,
     five_wickets INTEGER DEFAULT 0,
-    best_bowling_runs INTEGER,
-    best_bowling_wickets INTEGER,
+    ten_wickets INTEGER DEFAULT 0,
+    
+    team_name TEXT,
     
     PRIMARY KEY (player_id, format),
     FOREIGN KEY(player_id) REFERENCES CAPlayers(player_id)

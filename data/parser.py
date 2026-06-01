@@ -593,6 +593,15 @@ def save_parsed_match(conn, data):
     if not data:
         return False
         
+    m = data['match']
+    
+    # Call Orchestrator to Deduplicate across APIs
+    import orchestrator
+    is_new = orchestrator.register_match(m['team1_name'], m['team2_name'], m['date'], m['format'], 'ca', m['match_id'])
+    if not is_new:
+        # It's a duplicate, orchestrator has linked it. Skip parsing.
+        return False
+        
     cursor = conn.cursor()
     
     # 1. Insert Tournaments

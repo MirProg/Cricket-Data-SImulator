@@ -104,5 +104,5 @@ def crawl_cricbuzz_range(start_id=85000, end_id=95000, max_threads=50):
     logger.info(f"Cricbuzz crawl cycle complete. Successfully scraped {success_count} new matches.")
 
 if __name__ == "__main__":
-    # Start scanning from 85000 to 95000 with 50 threads
-    crawl_cricbuzz_range(start_id=85000, end_id=95000, max_threads=50)
+    # Start scanning from 1 to 105000 with 50 threads to capture ALL matches
+    crawl_cricbuzz_range(start_id=1, end_id=105000, max_threads=50)
