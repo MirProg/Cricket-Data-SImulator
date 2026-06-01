@@ -71,13 +71,13 @@ async def get_recent_matches(limit: int = 10):
 async def get_match_details(match_id: str):
     conn = get_db()
     cursor = conn.cursor()
+    
     cursor.execute("""
-        SELECT m.match_id, m.date, m.format, m.venue, m.win_margin_runs,
-               t1.name as team1_name, t2.name as team2_name, tw.name as winner_name
-        FROM Matches m
-        LEFT JOIN Teams t1 ON m.team1_id = t1.team_id
-        LEFT JOIN Teams t2 ON m.team2_id = t2.team_id
-        LEFT JOIN Teams tw ON m.winner = tw.team_id
+        SELECT m.match_id, m.date, m.format, m.venue, m.result as winner_name, m.win_margin_text,
+               t1.name as team1_name, t2.name as team2_name
+        FROM CAMatches m
+        LEFT JOIN CATeams t1 ON m.team1_id = t1.team_id
+        LEFT JOIN CATeams t2 ON m.team2_id = t2.team_id
         WHERE m.match_id = ?
     """, (match_id,))
     match_info = cursor.fetchone()
@@ -86,17 +86,47 @@ async def get_match_details(match_id: str):
         conn.close()
         return {"error": "Match not found"}
         
+    # Get Innings
     cursor.execute("""
-        SELECT player_name, team, runs_scored, balls_faced, wickets_taken, runs_conceded, overs_bowled 
-        FROM Player_Match_Stats 
-        WHERE match_id = ?
+        SELECT id as innings_id, innings_number, runs, wickets, overs, extras_total,
+               (SELECT name FROM CATeams WHERE team_id = batting_team_id) as batting_team
+        FROM CAInnings WHERE match_id = ? ORDER BY innings_number
     """, (match_id,))
-    stats = cursor.fetchall()
+    innings = [dict(i) for i in cursor.fetchall()]
+    
+    for inn in innings:
+        # Get Batting
+        cursor.execute("""
+            SELECT p.name as batter_name, b.dismissal_text, b.runs, b.balls, b.fours, b.sixes, b.strike_rate
+            FROM CAPlayerBattingScorecard b
+            JOIN CAPlayers p ON b.player_id = p.player_id
+            WHERE b.innings_id = ?
+        """, (inn['innings_id'],))
+        inn['batting'] = [dict(b) for b in cursor.fetchall()]
+        
+        # Get Bowling
+        cursor.execute("""
+            SELECT p.name as bowler_name, b.overs, b.maidens, b.runs, b.wickets, b.econ, b.wides, b.no_balls
+            FROM CAPlayerBowlingScorecard b
+            JOIN CAPlayers p ON b.player_id = p.player_id
+            WHERE b.innings_id = ?
+        """, (inn['innings_id'],))
+        inn['bowling'] = [dict(b) for b in cursor.fetchall()]
+        
+        # Get FOW
+        cursor.execute("""
+            SELECT f.wicket_num, f.score, f.overs, p.name as player_out
+            FROM CAFallOfWickets f
+            LEFT JOIN CAPlayers p ON f.player_out_id = p.player_id
+            WHERE f.innings_id = ? ORDER BY f.wicket_num
+        """, (inn['innings_id'],))
+        inn['fow'] = [dict(f) for f in cursor.fetchall()]
+        
     conn.close()
     
     return {
         "info": dict(match_info),
-        "scorecard": [dict(s) for s in stats]
+        "innings": innings
     }
 
 @app.get("/api/player/{player_name}")
@@ -110,26 +140,34 @@ async def get_player_stats(player_name: str):
     # Wait, our seed script created PlayerCareerStats using player_id, but we only pass player_name around in Player_Match_Stats.
     # Let's join Players to get the ID.
     cursor.execute("""
-        SELECT p.name, c.* 
-        FROM Players p
-        JOIN PlayerCareerStats c ON p.player_id = c.player_id
-        WHERE p.name = ?
+        SELECT p.name, p.player_id, c.* 
+        FROM CAPlayers p
+        LEFT JOIN PlayerCareerStats c ON p.player_id = c.player_id
+        WHERE p.name = ? COLLATE NOCASE
     """, (decoded_name,))
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     
-    if not row:
-        # Fallback to aggregating from Player_Match_Stats if career stats table doesn't have them
-        cursor.execute("""
-            SELECT player_name as name, team as team_name, count(match_id) as matches, 
-                   sum(runs_scored) as bat_runs, sum(wickets_taken) as bowl_wickets
-            FROM Player_Match_Stats
-            WHERE player_name = ?
-            GROUP BY player_name
-        """, (decoded_name,))
-        row = cursor.fetchone()
+    if not rows:
+        conn.close()
+        return {"error": "Player not found"}
         
+    player_info = {
+        "name": rows[0]["name"],
+        "player_id": rows[0]["player_id"],
+        "team_name": rows[0]["team_name"],
+        "career_stats": []
+    }
+    
+    for r in rows:
+        if r["format"]:
+            stat = dict(r)
+            # Remove redundant top-level keys
+            stat.pop("name", None)
+            stat.pop("player_id", None)
+            player_info["career_stats"].append(stat)
+            
     conn.close()
-    return dict(row) if row else {"error": "Player not found"}
+    return player_info
 
 @app.get("/api/records")
 async def get_global_records():

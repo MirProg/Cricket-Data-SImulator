@@ -16,7 +16,7 @@ RAW_DATA_DIR = Path('data/raw_ca')
 RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # Scraper configuration
-MAX_CONCURRENT_REQUESTS = 150
+MAX_CONCURRENT_REQUESTS = 50
 BATCH_SIZE = 5000
 
 # User agents pool
@@ -38,44 +38,42 @@ async def fetch_match(session, match_id, semaphore):
     }
     
     async with semaphore:
+        # Minimal delay since VPN is active
+        await asyncio.sleep(random.uniform(0.1, 0.3))
         try:
             async with session.get(url, headers=headers, timeout=20) as response:
                 if response.status == 200:
                     text = await response.text()
                     # Check if it actually contains a scorecard table
                     if "<table" not in text:
-                        return match_id, 'RETRY'
+                        return match_id, 'RETRY', None
                         
-                    # Save HTML to disk
-                    file_path = RAW_DATA_DIR / f"{match_id}.html"
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(text)
-                        
-                    return match_id, 'SUCCESS'
+                    # Return HTML text directly in memory (ZERO DISK)
+                    return match_id, 'SUCCESS', text
                     
                 elif response.status == 404:
-                    return match_id, 'FAILED_404'
+                    return match_id, 'FAILED_404', None
                 elif response.status == 403:
-                    return match_id, 'BANNED'
+                    return match_id, 'BANNED', None
                 elif response.status == 429:
-                    return match_id, 'RETRY_LATER'
+                    return match_id, 'RETRY_LATER', None
                 else:
-                    return match_id, 'RETRY'
+                    return match_id, 'RETRY', None
                     
         except asyncio.TimeoutError:
-            return match_id, 'RETRY'
+            return match_id, 'RETRY', None
         except Exception as e:
             err_str = str(e).lower()
             if "eof" in err_str or "connection" in err_str or "reset" in err_str:
-                return match_id, 'RETRY'
-            return match_id, 'RETRY'
+                return match_id, 'RETRY', None
+            return match_id, 'RETRY', None
 
 def update_db_batch(results):
-    """Synchronously bulk updates the database with crawl results."""
+    """Synchronously bulk updates the database with crawl results and in-memory parsing."""
     conn = sqlite3.connect(DB_PATH, timeout=60.0)
     cursor = conn.cursor()
     
-    update_data = [(status, match_id) for match_id, status in results]
+    update_data = [(status, match_id) for match_id, status, _ in results]
     
     try:
         cursor.executemany('''
@@ -83,6 +81,18 @@ def update_db_batch(results):
             SET status = ? 
             WHERE ca_match_id = ?
         ''', update_data)
+        
+        # Zero-disk in-memory parsing
+        import parser
+        for match_id, status, text in results:
+            if status == 'SUCCESS' and text:
+                try:
+                    parsed_data = parser.parse_scorecard_html(text, match_id)
+                    if parsed_data:
+                        parser.save_parsed_match(conn, parsed_data)
+                except Exception as e:
+                    logger.error(f"Failed to parse match {match_id}: {e}")
+                    
         conn.commit()
     except sqlite3.Error as e:
         logger.error(f"Failed to update database batch: {e}")
@@ -102,14 +112,14 @@ async def scrape_batch(match_ids):
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Clean results (handle any unhandled exceptions that leaked through)
+        # Clean results
         cleaned_results = []
         for i, r in enumerate(results):
-            if isinstance(r, tuple) and len(r) == 2:
+            if isinstance(r, tuple) and len(r) == 3:
                 cleaned_results.append(r)
             else:
                 logger.error(f"Unhandled exception on match {match_ids[i]}: {r}")
-                cleaned_results.append((match_ids[i], 'RETRY'))
+                cleaned_results.append((match_ids[i], 'RETRY', None))
                 
         return cleaned_results
 
@@ -145,10 +155,10 @@ def run_scraper(limit=None):
         elapsed = time.time() - start_time
         
         # Analyze results
-        successes = sum(1 for _, status in results if status == 'SUCCESS')
-        failed_404 = sum(1 for _, status in results if status == 'FAILED_404')
-        banned = sum(1 for _, status in results if status == 'BANNED')
-        retries = sum(1 for _, status in results if status.startswith('RETRY'))
+        successes = sum(1 for _, status, _ in results if status == 'SUCCESS')
+        failed_404 = sum(1 for _, status, _ in results if status == 'FAILED_404')
+        banned = sum(1 for _, status, _ in results if status == 'BANNED')
+        retries = sum(1 for _, status, _ in results if status.startswith('RETRY'))
         
         logger.info(f"Batch completed in {elapsed:.2f}s (Avg: {len(match_ids)/elapsed:.2f} req/s). " 
                     f"Success: {successes}, 404s: {failed_404}, Banned: {banned}, Retries: {retries}")

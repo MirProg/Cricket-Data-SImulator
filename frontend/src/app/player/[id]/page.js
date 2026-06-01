@@ -11,30 +11,41 @@ export default function PlayerProfile() {
   const playerName = decodeURIComponent(params.id);
 
   useEffect(() => {
-    // We fetch from the team matches API as a fallback, but a dedicated /api/player_stats would be ideal.
-    // For now we simulate the detailed stat fetch.
-    setTimeout(() => {
-      setData({
-        name: playerName,
-        country: "India",
-        role: "Top-order batter",
-        battingStyle: "Right-hand bat",
-        bowlingStyle: "Right-arm medium",
-        formats: ["Test", "ODI", "T20I", "FC", "List A", "T20"],
-        // Mocking the detailed columns for UI representation until backend strictly supports all 25 columns
-        batting: [
-          { format: "Test", mat: 113, inns: 191, no: 11, runs: 8848, hs: "254*", ave: 49.15, bf: 15924, sr: 55.56, "100s": 29, "50s": 30, "4s": 991, "6s": 26, ct: 111, st: 0 },
-          { format: "ODI", mat: 292, inns: 280, no: 44, runs: 13848, hs: "183", ave: 58.67, bf: 14797, sr: 93.58, "100s": 50, "50s": 72, "4s": 1294, "6s": 151, ct: 151, st: 0 },
-          { format: "T20I", mat: 117, inns: 109, no: 31, runs: 4037, hs: "122*", ave: 51.75, bf: 2922, sr: 138.15, "100s": 1, "50s": 37, "4s": 361, "6s": 117, ct: 53, st: 0 },
-        ],
-        bowling: [
-          { format: "Test", mat: 113, inns: 11, balls: 175, runs: 84, wkts: 0, bbi: "-", bbm: "-", ave: "-", econ: 2.88, sr: "-", "4w": 0, "5w": 0, "10w": 0 },
-          { format: "ODI", mat: 292, inns: 50, balls: 653, runs: 673, wkts: 5, bbi: "1/15", bbm: "1/15", ave: 134.60, econ: 6.18, sr: 130.6, "4w": 0, "5w": 0, "10w": 0 },
-          { format: "T20I", mat: 117, inns: 13, balls: 152, runs: 204, wkts: 4, bbi: "1/13", bbm: "1/13", ave: 51.00, econ: 8.05, sr: 38.0, "4w": 0, "5w": 0, "10w": 0 },
-        ]
+    fetch(`http://localhost:8000/api/player/${playerName}`)
+      .then(res => res.json())
+      .then(fetchedData => {
+        if (fetchedData.error || !fetchedData.career_stats) {
+          setData(null);
+        } else {
+          const formattedBatting = fetchedData.career_stats.map(s => ({
+            format: s.format, mat: s.matches, inns: s.bat_innings, no: s.not_outs, runs: s.bat_runs,
+            hs: s.highest_score_not_out ? `${s.highest_score}*` : s.highest_score,
+            ave: s.bat_avg ? s.bat_avg.toFixed(2) : "-", bf: s.balls_faced, sr: s.bat_sr ? s.bat_sr.toFixed(2) : "-",
+            "100s": s.hundreds, "50s": s.fifties, "4s": s.fours, "6s": s.sixes, ct: s.catches, st: s.stumpings
+          }));
+          
+          const formattedBowling = fetchedData.career_stats.map(s => ({
+            format: s.format, mat: s.matches, inns: s.bowl_innings, balls: s.bowl_balls, runs: s.bowl_runs, wkts: s.bowl_wickets,
+            bbi: s.best_bowl_innings || "-", bbm: s.best_bowl_match || "-", ave: s.bowl_avg ? s.bowl_avg.toFixed(2) : "-",
+            econ: s.bowl_econ ? s.bowl_econ.toFixed(2) : "-", sr: s.bowl_sr ? s.bowl_sr.toFixed(2) : "-", "4w": s.four_wickets, "5w": s.five_wickets, "10w": s.ten_wickets
+          }));
+          
+          setData({
+            name: fetchedData.name,
+            country: fetchedData.team_name || "International Player",
+            role: "Cricket Player",
+            battingStyle: "-",
+            bowlingStyle: "-",
+            batting: formattedBatting,
+            bowling: formattedBowling
+          });
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
       });
-      setLoading(false);
-    }, 500);
   }, [playerName]);
 
   if (loading) return <div className="p-12 text-center text-gray-500 min-h-screen bg-[#f8fafc]">Loading profile...</div>;

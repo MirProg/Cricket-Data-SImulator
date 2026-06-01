@@ -27,11 +27,7 @@ export default function MatchScorecard() {
   if (loading) return <div className="p-12 text-center text-gray-500">Loading scorecard...</div>;
   if (!data || data.error) return <div className="p-12 text-center text-red-500">Match not found.</div>;
 
-  const { info, scorecard } = data;
-  
-  // Separate players into teams (based on seed data logic)
-  const team1Players = scorecard.filter(p => p.team === info.team1_name);
-  const team2Players = scorecard.filter(p => p.team === info.team2_name);
+  const { info, innings } = data;
 
   return (
     <div className="py-6 px-4 sm:px-0">
@@ -52,78 +48,111 @@ export default function MatchScorecard() {
           </div>
         </div>
         <div className="text-center text-blue-700 font-bold bg-blue-50 py-2 rounded">
-          {info.winner_name} won by {info.win_margin_runs} runs
+          {info.winner_name} {info.win_margin_text ? info.win_margin_text : "won"}
         </div>
       </div>
 
-      {/* Scorecards Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        
-        {/* Team 1 Scorecard */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="bg-gray-100 border-b border-gray-200 px-4 py-3">
-            <h3 className="font-bold text-gray-800">{info.team1_name} Innings</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-3">Batter</th>
-                  <th className="px-4 py-3 text-right">R</th>
-                  <th className="px-4 py-3 text-right">B</th>
-                  <th className="px-4 py-3 text-right">SR</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {team1Players.map(p => (
-                  <tr key={p.player_name} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-blue-600 hover:underline">
-                      <Link href={`/player/${p.player_name}`}>{p.player_name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-800">{p.runs_scored}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{p.balls_faced}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">
-                      {p.balls_faced > 0 ? ((p.runs_scored / p.balls_faced) * 100).toFixed(2) : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* Innings Accordions */}
+      <div className="flex flex-col gap-6">
+        {innings.map((inn, idx) => (
+          <div key={idx} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            
+            {/* Innings Header */}
+            <div className="bg-gray-800 text-white px-4 py-3 flex justify-between items-center">
+              <h3 className="font-bold">{inn.batting_team} 1st Innings</h3>
+              <span className="font-bold">{inn.runs}/{inn.wickets} <span className="text-gray-400 font-normal ml-2">({inn.overs} Overs)</span></span>
+            </div>
 
-        {/* Team 2 Scorecard */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="bg-gray-100 border-b border-gray-200 px-4 py-3">
-            <h3 className="font-bold text-gray-800">{info.team2_name} Innings</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr>
-                  <th className="px-4 py-3">Batter</th>
-                  <th className="px-4 py-3 text-right">R</th>
-                  <th className="px-4 py-3 text-right">B</th>
-                  <th className="px-4 py-3 text-right">SR</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {team2Players.map(p => (
-                  <tr key={p.player_name} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-blue-600 hover:underline">
-                      <Link href={`/player/${p.player_name}`}>{p.player_name}</Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-800">{p.runs_scored}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{p.balls_faced}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">
-                      {p.balls_faced > 0 ? ((p.runs_scored / p.balls_faced) * 100).toFixed(2) : '-'}
+            {/* Batting Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3">Batter</th>
+                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3 text-right font-bold text-gray-800">R</th>
+                    <th className="px-4 py-3 text-right">B</th>
+                    <th className="px-4 py-3 text-right">4s</th>
+                    <th className="px-4 py-3 text-right">6s</th>
+                    <th className="px-4 py-3 text-right">SR</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {inn.batting.map(b => (
+                    <tr key={b.batter_name} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-semibold text-blue-600 hover:underline whitespace-nowrap">
+                        <Link href={`/player/${b.batter_name}`}>{b.batter_name}</Link>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{b.dismissal_text}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-800">{b.runs}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.balls}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.fours}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.sixes}</td>
+                      <td className="px-4 py-3 text-right text-gray-500">{b.strike_rate !== null ? b.strike_rate : '-'}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50">
+                    <td className="px-4 py-3 font-semibold text-gray-700">Extras</td>
+                    <td colSpan="6" className="px-4 py-3 font-bold text-gray-800">{inn.extras_total}</td>
+                  </tr>
+                  <tr className="bg-gray-100 border-t-2 border-gray-200">
+                    <td className="px-4 py-3 font-bold text-gray-900 uppercase text-xs">Total</td>
+                    <td colSpan="6" className="px-4 py-3 font-bold text-gray-900">
+                      {inn.runs}/{inn.wickets} <span className="font-normal text-gray-600">({inn.overs} Overs)</span>
                     </td>
                   </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Fall of Wickets */}
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+              <h4 className="text-xs font-bold uppercase text-gray-500 mb-2">Fall of Wickets</h4>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {inn.fow.map((f, i) => (
+                  <span key={i}>
+                    {f.score}-{f.wicket_num} ({f.player_out}, {f.overs} ov){i < inn.fow.length - 1 ? ', ' : ''}
+                  </span>
                 ))}
-              </tbody>
-            </table>
+              </p>
+            </div>
+
+            {/* Bowling Table */}
+            <div className="overflow-x-auto border-t border-gray-200">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3">Bowler</th>
+                    <th className="px-4 py-3 text-right">O</th>
+                    <th className="px-4 py-3 text-right">M</th>
+                    <th className="px-4 py-3 text-right">R</th>
+                    <th className="px-4 py-3 text-right font-bold text-gray-800">W</th>
+                    <th className="px-4 py-3 text-right">ECON</th>
+                    <th className="px-4 py-3 text-right">WD</th>
+                    <th className="px-4 py-3 text-right">NB</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {inn.bowling.map(b => (
+                    <tr key={b.bowler_name} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-semibold text-blue-600 hover:underline whitespace-nowrap">
+                        <Link href={`/player/${b.bowler_name}`}>{b.bowler_name}</Link>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.overs}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.maidens}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{b.runs}</td>
+                      <td className="px-4 py-3 text-right font-bold text-gray-800">{b.wickets}</td>
+                      <td className="px-4 py-3 text-right text-gray-500">{b.econ !== null ? b.econ : '-'}</td>
+                      <td className="px-4 py-3 text-right text-gray-500">{b.wides}</td>
+                      <td className="px-4 py-3 text-right text-gray-500">{b.no_balls}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );

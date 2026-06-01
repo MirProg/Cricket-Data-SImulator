@@ -66,14 +66,16 @@ def get_id_from_url(url, regex_type):
         return match.group(1) if match else None
     return None
 
-def parse_scorecard_html(file_path):
+def parse_scorecard_html(file_path_or_html, match_id=None):
     """
-    Parses a single HTML file and returns structured match data dictionary.
+    Parses HTML and returns structured match data dictionary.
     """
-    match_id = os.path.basename(file_path).replace('.html', '')
-    
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        html_content = f.read()
+    if match_id is None:
+        match_id = os.path.basename(file_path_or_html).replace('.html', '')
+        with open(file_path_or_html, 'r', encoding='utf-8', errors='ignore') as f:
+            html_content = f.read()
+    else:
+        html_content = file_path_or_html
         
     soup = BeautifulSoup(html_content, 'lxml')
     
