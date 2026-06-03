@@ -3,23 +3,20 @@ CricketArchive Playwright Scraper
 - Uses a REAL Firefox browser so Cloudflare cannot distinguish it from your normal browsing
 - Parses scorecards directly into SQL (no raw HTML stored)
 - Supports resuming from where it left off
+- Injects native Firefox cookies to bypass paywall instantly
 """
 import sqlite3
 import re
 import time
-import logging
 import argparse
+import browser_cookie3
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
+import sys
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('playwright_scraper.log')
-    ]
-)
+def log(msg):
+    print(msg)
+    sys.stdout.flush()
 
 DB_PATH = r"C:\Users\seo\.local\bin\cricket_simulator\data\master_archive.sqlite"
 
@@ -84,7 +81,7 @@ def parse_scorecard(html, match_id, conn):
     tables = soup.find_all("table")
     
     if len(tables) < 2:
-        logging.warning(f"Match {match_id}: Not a scorecard page (only {len(tables)} tables)")
+        log(f"Match {match_id}: Not a scorecard page (only {len(tables)} tables)")
         return False
     
     # Table 0 = Match metadata
@@ -114,7 +111,6 @@ def parse_scorecard(html, match_id, conn):
             elif "result" in label:
                 result = value
             elif not title:
-                # First row is typically "match_code" + "Team1 v Team2"
                 title = value
             elif not series:
                 series = value
@@ -125,9 +121,9 @@ def parse_scorecard(html, match_id, conn):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (match_id, title, series, venue, date_text, fmt, toss, result, balls_per_over))
     
-    # Parse innings tables (batting + bowling come in pairs)
+    # Parse innings tables
     innings_num = 0
-    i = 1  # skip table 0 (metadata)
+    i = 1  
     
     while i < len(tables):
         table = tables[i]
@@ -139,12 +135,11 @@ def parse_scorecard(html, match_id, conn):
         header_cells = [c.get_text(strip=True) for c in first_row.find_all(["td", "th"])]
         header_text = header_cells[0] if header_cells else ""
         
-        # Detect batting innings
         if "innings" in header_text.lower():
             innings_num += 1
             batting_team = re.sub(r'(first|second|third|fourth)\s*innings', '', header_text, flags=re.IGNORECASE).strip()
             
-            rows = table.find_all("tr")[1:]  # skip header
+            rows = table.find_all("tr")[1:]
             total_runs = 0
             total_wickets = 0
             
@@ -155,20 +150,16 @@ def parse_scorecard(html, match_id, conn):
                 
                 player_name = cells[0]
                 if not player_name or player_name.lower() in ['extras', 'total', '']:
-                    # Parse extras/total
                     if 'total' in player_name.lower() and len(cells) >= 3:
                         try:
                             total_runs = int(re.sub(r'[^\d]', '', cells[2])) if cells[2] else 0
-                        except:
-                            pass
+                        except: pass
                     continue
                 
                 dismissal = cells[1] if len(cells) > 1 else ""
                 runs = 0
-                try:
-                    runs = int(cells[2]) if len(cells) > 2 and cells[2].isdigit() else 0
-                except:
-                    pass
+                try: runs = int(cells[2]) if len(cells) > 2 and cells[2].isdigit() else 0
+                except: pass
                 
                 balls = cells[3] if len(cells) > 3 else ""
                 mins = cells[4] if len(cells) > 4 else ""
@@ -193,7 +184,6 @@ def parse_scorecard(html, match_id, conn):
             
             i += 1
             
-        # Detect bowling table
         elif "bowling" in header_text.lower():
             rows = table.find_all("tr")[1:]
             for row in rows:
@@ -205,15 +195,11 @@ def parse_scorecard(html, match_id, conn):
                 overs = cells[1] if len(cells) > 1 else ""
                 maidens = cells[2] if len(cells) > 2 else ""
                 runs = 0
-                try:
-                    runs = int(cells[3]) if len(cells) > 3 and cells[3].isdigit() else 0
-                except:
-                    pass
+                try: runs = int(cells[3]) if len(cells) > 3 and cells[3].isdigit() else 0
+                except: pass
                 wickets = 0
-                try:
-                    wickets = int(cells[4]) if len(cells) > 4 and cells[4].isdigit() else 0
-                except:
-                    pass
+                try: wickets = int(cells[4]) if len(cells) > 4 and cells[4].isdigit() else 0
+                except: pass
                 wides = cells[5] if len(cells) > 5 else ""
                 no_balls = cells[6] if len(cells) > 6 else ""
                 
@@ -228,7 +214,6 @@ def parse_scorecard(html, match_id, conn):
             i += 1
     
     conn.commit()
-    logging.info(f"Match {match_id}: Parsed '{title}' - {innings_num} innings")
     return True
 
 def get_last_scraped(conn):
@@ -240,25 +225,46 @@ def save_progress(conn, match_id):
     conn.commit()
 
 def run_scraper(start_id, end_id, delay):
+    log("Connecting to Database...")
     conn = sqlite3.connect(DB_PATH, timeout=30)
     ensure_tables(conn)
     
-    # Resume from last progress if no explicit start
     last = get_last_scraped(conn)
     if last > 0 and start_id <= last:
         start_id = last + 1
-        logging.info(f"Resuming from match ID {start_id}")
+        log(f"Resuming from match ID {start_id}")
+    
+    log("Extracting Firefox Cookies...")
+    try:
+        cj = browser_cookie3.firefox()
+        ca_cookies = [c for c in cj if "cricketarchive" in c.domain]
+        log(f"Extracted {len(ca_cookies)} active Firefox cookies for CricketArchive")
+    except Exception as e:
+        log(f"Error extracting cookies: {e}")
+        return
+        
+    pw_cookies = []
+    for c in ca_cookies:
+        pw_cookies.append({
+            "name": c.name,
+            "value": c.value,
+            "domain": c.domain,
+            "path": c.path,
+        })
     
     with sync_playwright() as p:
-        browser = p.firefox.launch(headless=True)
+        log("Launching headless Chromium...")
+        browser = p.chromium.launch(headless=True)
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
+        context.add_cookies(pw_cookies)
         page = context.new_page()
         
         success = 0
         errors = 0
         
+        log(f"Starting loop from ID {start_id} to {end_id}")
         for match_id in range(start_id, end_id + 1):
             url = f"https://cricketarchive.com/Archive/Scorecards/{match_id // 1000}/{match_id}.html"
             
@@ -267,21 +273,20 @@ def run_scraper(start_id, end_id, delay):
                 html = page.content()
                 
                 if "Access Denied" in html or "403" in page.title():
+                    log(f"Match {match_id}: BLOCKED (403/Cloudflare)")
                     errors += 1
-                    if errors % 50 == 0:
-                        logging.warning(f"Hit {errors} blocked pages. Consider increasing delay.")
+                    time.sleep(delay * 2)
                     continue
                 
                 parsed = parse_scorecard(html, match_id, conn)
                 if parsed:
                     success += 1
                     save_progress(conn, match_id)
-                    
-                if success % 100 == 0 and success > 0:
-                    logging.info(f"Progress: {success} scorecards parsed, {errors} blocked, current ID: {match_id}")
+                    if success % 10 == 0:
+                        log(f"SUCCESS: Parsed {success} scorecards | Current ID: {match_id}")
                     
             except Exception as e:
-                logging.error(f"Match {match_id}: {str(e)[:100]}")
+                log(f"Match {match_id} ERROR: {str(e)[:100]}")
                 errors += 1
             
             time.sleep(delay)
@@ -289,15 +294,13 @@ def run_scraper(start_id, end_id, delay):
         browser.close()
     
     conn.close()
-    logging.info(f"COMPLETE. Total parsed: {success}, Total blocked: {errors}")
+    log(f"COMPLETE. Total parsed: {success}, Total blocked: {errors}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="CricketArchive Playwright Scraper (Direct to SQL)")
-    parser.add_argument("--start", type=int, default=1, help="Starting Match ID")
-    parser.add_argument("--end", type=int, default=900000, help="Ending Match ID")
-    parser.add_argument("--delay", type=float, default=0.5, help="Seconds between requests")
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start", type=int, default=1)
+    parser.add_argument("--end", type=int, default=900000)
+    parser.add_argument("--delay", type=float, default=0.3)
     args = parser.parse_args()
     
-    print(f"Starting Playwright Firefox scraper: IDs {args.start} to {args.end}, delay {args.delay}s")
     run_scraper(args.start, args.end, args.delay)
