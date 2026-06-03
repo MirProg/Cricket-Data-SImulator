@@ -1,0 +1,16 @@
+# GitHub Linguist overrides - tell GitHub what languages our code is
+# This prevents package-lock.json, generated files, etc. from skewing language stats
+
+# Vendor/generated files (exclude from language stats)
+frontend/package-lock.json linguist-generated=true
+frontend/package.json linguist-generated=true
+
+# Data files
+data/** linguist-vendored=true
+*.json linguist-vendored=true
+*.jsonl linguist-vendored=true
+*.html linguist-documentation=true
+
+# Ensure Python and JS are detected
+*.py linguist-language=Python
+*.js linguist-language=JavaScript

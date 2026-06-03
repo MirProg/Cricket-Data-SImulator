@@ -47,3 +47,7 @@ data/*.html
 ai/models/
 models/
 data/data/
+data/raw/
+web/
+test_ca.html
+data/teams.json
