@@ -1,32 +1,61 @@
 import numpy as np
+import json
+import os
 
 class MarkovSimulator:
     def __init__(self, n_simulations=10000):
         self.n_simulations = n_simulations
+        self._load_matrices()
         
+    def _load_matrices(self):
+        json_path = os.path.join(os.path.dirname(__file__), '../data/t20_transitions.json')
+        
+        # Fallback probabilities if JSON is missing
+        default_probs = [0.33, 0.40, 0.06, 0.005, 0.11, 0.045, 0.05]
+        self.outcomes = np.array([0, 1, 2, 3, 4, 6, -1])  # -1 represents a wicket
+        
+        self.matrices = {
+            "powerplay": np.array(default_probs),
+            "middle": np.array(default_probs),
+            "death": np.array(default_probs)
+        }
+        
+        if os.path.exists(json_path):
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+                
+            for phase in ["powerplay", "middle", "death"]:
+                if phase in data:
+                    probs_dict = data[phase]
+                    # Map the dict back to our outcomes array
+                    probs = [probs_dict.get(str(k), 0.0) for k in self.outcomes]
+                    self.matrices[phase] = np.array(probs)
+                    
+    def get_phase_probs(self, balls_remaining):
+        # T20 has 120 balls total.
+        # Powerplay: Overs 1-6 -> balls 1-36 -> balls_remaining > 84
+        # Middle: Overs 7-15 -> balls 37-90 -> balls_remaining > 30 and <= 84
+        # Death: Overs 16-20 -> balls 91-120 -> balls_remaining <= 30
+        if balls_remaining > 84:
+            return self.matrices["powerplay"]
+        elif balls_remaining > 30:
+            return self.matrices["middle"]
+        else:
+            return self.matrices["death"]
+            
     def simulate_innings(self, starting_runs, starting_balls_remaining, starting_wickets, prob_matrix=None):
         """
         Vectorized Monte Carlo simulation using NumPy for maximum performance.
-        prob_matrix: A dictionary or object that provides probability distribution
-                     for outcomes (0, 1, 2, 3, 4, 6, Wicket) given the state.
-        For Phase 2 MVP, we will use a generic T20 empirical probability matrix.
+        Now dynamically shifts phase matrices.
         """
-        # MDP State Variables for 10,000 parallel universes
+        # MDP State Variables for parallel universes
         runs = np.full(self.n_simulations, starting_runs, dtype=np.int32)
         balls_remaining = np.full(self.n_simulations, starting_balls_remaining, dtype=np.int32)
         wickets_lost = np.full(self.n_simulations, starting_wickets, dtype=np.int32)
         
-        # Generic T20 baseline probabilities: [0, 1, 2, 3, 4, 6, Wicket]
-        # Based on global empirical distribution: ~33% dots, ~40% singles, ~6% twos, ~0.5% threes, ~11% fours, ~4.5% sixes, ~5% wickets
-        outcomes = np.array([0, 1, 2, 3, 4, 6, -1])  # -1 represents a wicket
-        baseline_probs = np.array([0.33, 0.40, 0.06, 0.005, 0.11, 0.045, 0.05])
-        
-        # We loop over balls_remaining (max 120 for T20).
-        # Inside the loop, all operations are vectorized over the 10,000 simulations.
         max_balls = starting_balls_remaining
         
-        # History arrays to track trajectories (optional, but good for graphs)
-        # We'll just track runs at the end of each over for graphing
+        # History arrays to track trajectories
         over_runs_history = np.zeros((self.n_simulations, max_balls // 6 + 1), dtype=np.int32)
         over_runs_history[:, 0] = runs
         
@@ -41,9 +70,12 @@ class MarkovSimulator:
                 
             n_active = np.sum(active_mask)
             
-            # Sample outcomes for active simulations using the probability matrix
-            # In advanced phases, prob matrix dynamically shifts based on Phase dominance & batter/bowler match up
-            sampled_outcomes = rng.choice(outcomes, size=n_active, p=baseline_probs)
+            # Dynamically determine the phase probability based on balls remaining
+            current_balls = np.max(balls_remaining[active_mask])
+            current_probs = self.get_phase_probs(current_balls)
+            
+            # Sample outcomes for active simulations using the current probability matrix
+            sampled_outcomes = rng.choice(self.outcomes, size=n_active, p=current_probs)
             
             # Update state based on outcomes
             # Wickets

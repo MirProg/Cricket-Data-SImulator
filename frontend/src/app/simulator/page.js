@@ -1,129 +1,209 @@
 "use client";
 import { useState } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { Activity, TrendingUp, AlertTriangle } from "lucide-react";
 
-export default function Home() {
-  const [teamA, setTeamA] = useState("India");
-  const [teamB, setTeamB] = useState("Australia");
+export default function Simulator() {
+  const [runs, setRuns] = useState(0);
+  const [wickets, setWickets] = useState(0);
+  const [balls, setBalls] = useState(120);
   const [loading, setLoading] = useState(false);
-  const [prediction, setPrediction] = useState(null);
-  const [error, setError] = useState(null);
+  const [results, setResults] = useState(null);
+  const [chartData, setChartData] = useState([]);
 
-  const handlePredict = async () => {
+  const handleSimulate = async () => {
     setLoading(true);
-    setError(null);
-    setPrediction(null);
     try {
-      const res = await fetch("http://localhost:8000/api/predict", {
+      const res = await fetch("http://localhost:8000/simulate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ team_a: teamA, team_b: teamB }),
+        body: JSON.stringify({
+          runs_scored: runs,
+          wickets_lost: wickets,
+          balls_remaining: balls,
+          n_simulations: 1000
+        }),
       });
-      if (!res.ok) throw new Error("Failed to fetch prediction");
+      if (!res.ok) throw new Error("Simulation failed");
       const data = await res.json();
-      setPrediction(data);
+      setResults(data);
+      
+      // Format trajectories for Recharts
+      // trajectories is an array of 100 lists, each containing runs at the end of each remaining over
+      const formattedData = [];
+      const numOvers = data.trajectories[0].length;
+      const startOver = 20 - (balls / 6);
+      
+      for (let i = 0; i < numOvers; i++) {
+        let overData = { name: `Over ${Math.floor(startOver + i)}` };
+        // Just plot 20 sample paths to avoid overloading the DOM
+        for (let j = 0; j < Math.min(20, data.trajectories.length); j++) {
+          overData[`sim${j}`] = data.trajectories[j][i];
+        }
+        formattedData.push(overData);
+      }
+      setChartData(formattedData);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const teams = [
-    "India", "Australia", "England", "South Africa", 
-    "New Zealand", "Pakistan", "Sri Lanka", "West Indies", 
-    "Bangladesh", "Afghanistan"
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      
-      {/* Background gradients */}
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-emerald-600/10 rounded-full blur-[120px] translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
-
-      <div className="z-10 max-w-4xl w-full flex flex-col gap-10">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Header */}
-        <div className="text-center animate-in fade-in slide-in-from-top-8 duration-1000">
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
-            AI Cricket Predictor
-          </h1>
-          <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto">
-            Powered by PyTorch Transformers. Simulate match outcomes and top performer stats using 900,000+ historical records.
-          </p>
-        </div>
-
-        {/* Main Glass Panel */}
-        <div className="bg-slate-800/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 md:p-12 shadow-2xl hover:-translate-y-1 transition-all duration-500 ease-out animate-in fade-in zoom-in-95 duration-1000 delay-150 fill-mode-both">
-          
-          <div className="flex flex-col md:flex-row gap-6 md:gap-10 items-center justify-between mb-10">
-            
-            <div className="w-full flex flex-col gap-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Team A</label>
-              <select 
-                value={teamA} 
-                onChange={(e) => setTeamA(e.target.value)}
-                className="w-full bg-slate-900/80 border border-slate-700 text-slate-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer"
-              >
-                {teams.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            <div className="text-2xl font-black text-slate-600 italic px-4">VS</div>
-
-            <div className="w-full flex flex-col gap-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Team B</label>
-              <select 
-                value={teamB} 
-                onChange={(e) => setTeamB(e.target.value)}
-                className="w-full bg-slate-900/80 border border-slate-700 text-slate-200 p-4 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer"
-              >
-                {teams.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            
+        <div className="flex items-center gap-4 border-b border-slate-800 pb-6">
+          <Activity className="w-10 h-10 text-blue-500" />
+          <div>
+            <h1 className="text-4xl font-black bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              Live Monte Carlo Simulator
+            </h1>
+            <p className="text-slate-400 mt-1">
+              Data-driven projections powered by 3.5 Million empirical ball-by-ball transitions.
+            </p>
           </div>
-
-          <button 
-            onClick={handlePredict}
-            disabled={loading || teamA === teamB}
-            className={`w-full py-4 rounded-xl text-lg font-bold transition-all duration-300 shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] ${
-              loading || teamA === teamB ? "bg-slate-700 text-slate-400 cursor-not-allowed shadow-none hover:shadow-none" : "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:scale-[1.01]"
-            }`}
-          >
-            {loading ? (
-              <div className="flex items-center justify-center gap-3">
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Analyzing Model Sequences...
-              </div>
-            ) : "Simulate Match"}
-          </button>
-
-          {error && (
-            <div className="mt-6 p-4 bg-red-900/30 border border-red-500/30 text-red-400 rounded-xl text-center">
-              {error}
-            </div>
-          )}
-
         </div>
 
-        {/* Results Panel */}
-        {prediction && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-10 duration-700 ease-out">
-            <div className="bg-slate-800/50 backdrop-blur-xl border border-emerald-500/30 rounded-2xl p-8 text-center flex flex-col justify-center shadow-[0_0_40px_rgba(16,185,129,0.1)]">
-              <h3 className="text-emerald-400/80 text-sm font-bold uppercase tracking-widest mb-2">Predicted Winner</h3>
-              <div className="text-4xl md:text-5xl font-black text-emerald-400 mb-2">{prediction.winner}</div>
-              <div className="text-slate-300 text-lg">Win Probability: <span className="font-bold text-white">{prediction.win_probability}%</span></div>
-            </div>
+        {/* Input Panel */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">Current Runs</label>
+            <input 
+              type="number" 
+              value={runs} 
+              onChange={e => setRuns(parseInt(e.target.value) || 0)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">Wickets Lost</label>
+            <input 
+              type="number" 
+              value={wickets} 
+              max="10"
+              onChange={e => setWickets(parseInt(e.target.value) || 0)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-xl font-bold focus:ring-2 focus:ring-red-500 outline-none"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">Balls Remaining</label>
+            <input 
+              type="number" 
+              value={balls} 
+              max="120"
+              onChange={e => setBalls(parseInt(e.target.value) || 0)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-xl font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+            />
+          </div>
+          
+          <div className="md:col-span-3 pt-2">
+            <button 
+              onClick={handleSimulate}
+              disabled={loading}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg py-4 rounded-xl transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+            >
+              {loading ? "Computing 1,000 Universes..." : "Execute Simulation"}
+            </button>
+          </div>
+        </div>
+
+        {/* Results */}
+        {results && (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
             
-            <div className="bg-slate-800/50 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-8 text-center flex flex-col justify-center shadow-[0_0_40px_rgba(168,85,247,0.1)]">
-              <h3 className="text-purple-400/80 text-sm font-bold uppercase tracking-widest mb-2">Top Performer Stat</h3>
-              <div className="text-4xl md:text-5xl font-black text-purple-400 mb-2">{prediction.top_batsman_runs} Runs</div>
-              <div className="text-slate-300 text-lg">Predicted Highest Individual Score</div>
+            {/* Metrics Sidebar */}
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 left-0"></div>
+                <h3 className="text-slate-400 font-bold uppercase tracking-wider text-xs mb-2">Expected Final Score</h3>
+                <div className="text-5xl font-black text-white">{Math.round(results.mean_runs)}</div>
+                <div className="text-emerald-400 text-sm font-semibold mt-2 flex items-center justify-center gap-1">
+                  <TrendingUp className="w-4 h-4" /> Median: {Math.round(results.median_runs)}
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-red-400 to-red-600 left-0"></div>
+                <h3 className="text-slate-400 font-bold uppercase tracking-wider text-xs mb-2">Expected Wickets</h3>
+                <div className="text-4xl font-black text-red-400">{results.mean_wickets.toFixed(1)}</div>
+                <div className="text-red-500/80 text-sm font-semibold mt-2 flex items-center justify-center gap-1">
+                  <AlertTriangle className="w-4 h-4" /> Max 10
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg">
+                <h3 className="text-slate-400 font-bold uppercase tracking-wider text-xs mb-4 border-b border-slate-800 pb-2">Percentiles</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">90th (Best Case)</span>
+                    <span className="text-emerald-400 font-bold">{Math.round(results.p90_runs)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">75th (Good)</span>
+                    <span className="text-blue-400 font-bold">{Math.round(results.p75_runs)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">25th (Worst Case)</span>
+                    <span className="text-red-400 font-bold">{Math.round(results.p25_runs)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Chart Area */}
+            <div className="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg">
+              <h3 className="text-slate-200 font-bold text-lg mb-6 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-500" />
+                Win Probability Cone (20 Sample Trajectories)
+              </h3>
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#64748b" 
+                      tick={{ fill: '#64748b', fontSize: 12 }} 
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      stroke="#64748b" 
+                      tick={{ fill: '#64748b', fontSize: 12 }} 
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px' }}
+                      itemStyle={{ color: '#94a3b8' }}
+                      labelStyle={{ color: '#f8fafc', fontWeight: 'bold', marginBottom: '8px' }}
+                    />
+                    <ReferenceLine y={results.mean_runs} stroke="#3b82f6" strokeDasharray="3 3" label={{ position: 'top', value: 'Expected', fill: '#3b82f6', fontSize: 12 }} />
+                    
+                    {/* Render 20 individual trajectory lines with low opacity */}
+                    {Object.keys(chartData[0] || {}).filter(k => k.startsWith('sim')).map((key, i) => (
+                      <Line 
+                        key={key} 
+                        type="monotone" 
+                        dataKey={key} 
+                        stroke="#6366f1" 
+                        strokeWidth={1.5} 
+                        dot={false} 
+                        opacity={0.15} 
+                        isAnimationActive={true}
+                        animationDuration={2000}
+                        animationBegin={i * 50}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
           </div>
         )}
-
       </div>
     </div>
   );

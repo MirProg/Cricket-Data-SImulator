@@ -26,3 +26,8 @@ ENV/
 data/raw_ca/
 node_modules/
 *.db
+data/master_archive.sqlite
+data/cricmatrix.db
+data/cricket_db.sqlite
+data/sample_scorecard.html
+*.log

@@ -27,8 +27,14 @@ export default function RootLayout({ children }) {
                     <Link href="/records" className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-semibold transition-colors">
                       Records
                     </Link>
+                    <Link href="/archive" className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-semibold transition-colors">
+                      True Archive
+                    </Link>
                     <Link href="/simulator" className="text-gray-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-semibold transition-colors">
                       AI Simulator
+                    </Link>
+                    <Link href="/custom-match" className="text-gray-600 hover:text-emerald-600 px-3 py-2 rounded-md text-sm font-semibold transition-colors">
+                      Custom Match
                     </Link>
                   </div>
                 </div>

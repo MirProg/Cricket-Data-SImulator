@@ -35,15 +35,34 @@ export default function DatabaseHome() {
       {/* Header */}
       <div className="mb-10">
         <h1 className="text-3xl font-bold text-gray-900">Global Cricket Archive</h1>
-        <p className="text-gray-600 mt-2">Explore over 900,000 matches and millions of player statistics.</p>
+        <p className="text-gray-600 mt-2">Explore the complete database of 20,883 historical matches and extensive player statistics.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Main Feed: Recent Matches */}
         <div className="lg:col-span-2">
+          
+          {/* Live Score Ribbon */}
+          <div className="mb-8 overflow-x-auto pb-4">
+            <div className="flex gap-4" style={{ minWidth: "max-content" }}>
+              {matches.slice(0, 5).map(match => (
+                <Link key={`ribbon-${match.match_id}`} href={`/match/${match.match_id}`} className="bg-slate-900 text-white rounded-xl p-4 w-72 shrink-0 shadow-lg hover:bg-slate-800 transition-colors border border-slate-700">
+                  <div className="text-xs text-slate-400 font-semibold mb-2 uppercase tracking-wider">{match.format} &bull; {match.date}</div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-bold">{match.team1_name}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="font-bold">{match.team2_name}</span>
+                  </div>
+                  <div className="text-xs text-blue-400 font-bold">{match.winner_name} won</div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Recent Scorecards</h2>
+            <h2 className="text-xl font-bold text-gray-800">Match Archive</h2>
             <Link href="/records" className="text-blue-600 text-sm font-semibold hover:underline">View All &rarr;</Link>
           </div>
 
@@ -57,7 +76,7 @@ export default function DatabaseHome() {
                 <Link key={match.match_id} href={`/match/${match.match_id}`} className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow group">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">{match.format}</span>
-                    <span className="text-xs text-gray-400">{match.date} &bull; {match.venue}</span>
+                    <span className="text-xs text-gray-400 truncate ml-2">{match.date} &bull; {match.venue}</span>
                   </div>
                   <div className="space-y-1 mb-3">
                     <div className="flex justify-between font-semibold text-gray-800">
@@ -70,8 +89,8 @@ export default function DatabaseHome() {
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 border-t border-gray-100 pt-2 flex justify-between">
-                    <span>{match.winner_name} won by {match.win_margin_runs} runs</span>
-                    <span className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">Scorecard &rarr;</span>
+                    <span>{match.winner_name} won</span>
+                    <span className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">Full Scorecard &rarr;</span>
                   </div>
                 </Link>
               ))}
