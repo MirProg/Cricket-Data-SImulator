@@ -1,6 +1,7 @@
 import "./globals.css";
 import Link from "next/link";
 import Sidebar from "../components/Sidebar";
+import Searchbar from "../components/Searchbar";
 
 export const metadata = {
   title: "Cricket Database Portal",
@@ -40,15 +41,7 @@ export default function RootLayout({ children }) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {/* Search Bar for the DB */}
-                <div className="relative hidden md:block">
-                  <input 
-                    type="text" 
-                    placeholder="Search players, matches..." 
-                    className="bg-gray-100 text-gray-900 border border-gray-300 rounded-md px-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 transition-all"
-                  />
-                  <div className="absolute right-3 top-2 text-gray-400 text-xs">🔍</div>
-                </div>
+                <Searchbar />
               </div>
             </div>
           </div>

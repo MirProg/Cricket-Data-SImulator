@@ -11,7 +11,7 @@ use regex::Regex;
 use anyhow::{Result, anyhow};
 use std::time::Instant;
 
-const MAX_WORKERS: usize = 200;
+const MAX_WORKERS: usize = 50;
 const RETRY_DELAY: u64 = 1;
 const DB_PATH: &str = r"C:\Users\seo\.local\bin\cricket_simulator\data\master_archive.sqlite";
 
@@ -23,12 +23,9 @@ fn toggle_vpn(lock: &mut VpnLock) -> Result<()> {
     if lock.is_toggling { return Ok(()); }
     lock.is_toggling = true;
     
-    println!(">>> CLOUDFLARE BLOCK (403) DETECTED. TOGGLING VPN... <<<");
-    let _ = Command::new("warp-cli").arg("disconnect").output()?;
-    std::thread::sleep(Duration::from_secs(2));
-    let _ = Command::new("warp-cli").arg("connect").output()?;
-    std::thread::sleep(Duration::from_secs(4));
-    println!(">>> VPN TOGGLED SUCCESSFULLY. RESUMING... <<<");
+    println!(">>> CLOUDFLARE BLOCK (403) DETECTED. COOLING DOWN FOR 30 SECONDS... <<<");
+    std::thread::sleep(Duration::from_secs(30));
+    println!(">>> COOLDOWN COMPLETE. RESUMING... <<<");
     
     lock.is_toggling = false;
     Ok(())

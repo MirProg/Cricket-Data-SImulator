@@ -6,12 +6,14 @@ export default function DatabaseHome() {
   const [matches, setMatches] = useState([]);
   const [topBatsmen, setTopBatsmen] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState("recent");
 
   useEffect(() => {
     const fetchDbData = async () => {
+      setLoading(true);
       try {
         const [matchesRes, batsmenRes] = await Promise.all([
-          fetch("http://localhost:8000/api/matches?limit=12"),
+          fetch(`http://localhost:8000/api/matches?limit=12&category=${activeCategory}`),
           fetch("http://localhost:8000/api/records")
         ]);
         
@@ -28,69 +30,74 @@ export default function DatabaseHome() {
     };
 
     fetchDbData();
-  }, []);
+  }, [activeCategory]);
 
   return (
     <div className="py-8 px-4 sm:px-0">
       {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-gray-900">Global Cricket Archive</h1>
-        <p className="text-gray-600 mt-2">Explore the complete database of 20,883 historical matches and extensive player statistics.</p>
+      <div className="mb-8 border-b border-gray-200 pb-6">
+        <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Global Cricket Archive</h1>
+        <p className="text-gray-500 mt-2 text-lg">Explore the complete database of historical matches and dynamic statistics.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         
         {/* Main Feed: Recent Matches */}
         <div className="lg:col-span-2">
           
-          {/* Live Score Ribbon */}
-          <div className="mb-8 overflow-x-auto pb-4">
-            <div className="flex gap-4" style={{ minWidth: "max-content" }}>
-              {matches.slice(0, 5).map(match => (
-                <Link key={`ribbon-${match.match_id}`} href={`/match/${match.match_id}`} className="bg-slate-900 text-white rounded-xl p-4 w-72 shrink-0 shadow-lg hover:bg-slate-800 transition-colors border border-slate-700">
-                  <div className="text-xs text-slate-400 font-semibold mb-2 uppercase tracking-wider">{match.format} &bull; {match.date}</div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-bold">{match.team1_name}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="font-bold">{match.team2_name}</span>
-                  </div>
-                  <div className="text-xs text-blue-400 font-bold">{match.winner_name} won</div>
-                </Link>
-              ))}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+            <h2 className="text-2xl font-bold text-gray-800">Match Feed</h2>
+            
+            {/* Category Navigator */}
+            <div className="flex bg-gray-100 p-1 rounded-lg shadow-inner">
+              <button 
+                onClick={() => setActiveCategory("recent")}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeCategory === "recent" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                All Recent
+              </button>
+              <button 
+                onClick={() => setActiveCategory("international")}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeCategory === "international" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                International
+              </button>
+              <button 
+                onClick={() => setActiveCategory("domestic")}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${activeCategory === "domestic" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              >
+                Domestic Leagues
+              </button>
             </div>
-          </div>
-
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Match Archive</h2>
-            <Link href="/records" className="text-blue-600 text-sm font-semibold hover:underline">View All &rarr;</Link>
           </div>
 
           {loading ? (
             <div className="space-y-4">
-              {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-md"></div>)}
+              {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-32 bg-gray-200 animate-pulse rounded-xl"></div>)}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {matches.map((match) => (
-                <Link key={match.match_id} href={`/match/${match.match_id}`} className="block bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded">{match.format}</span>
-                    <span className="text-xs text-gray-400 truncate ml-2">{match.date} &bull; {match.venue}</span>
+                <Link key={match.match_id} href={`/match/${match.match_id}`} className="block bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all group hover:border-blue-300">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${match.match_category === 'International' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {match.match_format || match.format} &bull; {match.match_category || "Domestic"}
+                    </span>
+                    <span className="text-xs text-gray-400 truncate ml-2 font-medium">{match.date}</span>
                   </div>
-                  <div className="space-y-1 mb-3">
-                    <div className="flex justify-between font-semibold text-gray-800">
+                  <div className="space-y-2 mb-4">
+                    <div className="flex justify-between font-bold text-gray-900 text-sm">
                       <span>{match.team1_name}</span>
-                      {match.winner_name === match.team1_name && <span className="text-blue-600 text-xs">WINNER</span>}
+                      {match.winner_name === match.team1_name && <span className="text-blue-600 text-[10px] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded">Winner</span>}
                     </div>
-                    <div className="flex justify-between font-semibold text-gray-800">
+                    <div className="flex justify-between font-bold text-gray-900 text-sm">
                       <span>{match.team2_name}</span>
-                      {match.winner_name === match.team2_name && <span className="text-blue-600 text-xs">WINNER</span>}
+                      {match.winner_name === match.team2_name && <span className="text-blue-600 text-[10px] uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded">Winner</span>}
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500 border-t border-gray-100 pt-2 flex justify-between">
-                    <span>{match.winner_name} won</span>
-                    <span className="text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">Full Scorecard &rarr;</span>
+                  <div className="text-xs text-gray-500 border-t border-gray-100 pt-3 flex justify-between items-center">
+                    <span className="truncate pr-2">{match.winner_name} won</span>
+                    <span className="text-blue-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Scorecard &rarr;</span>
                   </div>
                 </Link>
               ))}
@@ -99,43 +106,45 @@ export default function DatabaseHome() {
         </div>
 
         {/* Sidebar: Global Records */}
-        <div className="space-y-8">
-          
-          {/* Top Batsmen Table */}
-          <div className="bg-white border border-gray-200 rounded-lg p-5">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">
-              Highest Career Runs
-            </h3>
+        <div className="space-y-6">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-xl text-white">
+            <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-3">
+              <h3 className="text-lg font-bold tracking-wide">Live AI Calculations</h3>
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+            </div>
             
-            {loading ? (
+            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4">Highest Career Runs</h4>
+            
+            {loading && topBatsmen.length === 0 ? (
               <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-8 bg-gray-100 animate-pulse rounded"></div>)}
+                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-8 bg-slate-700 animate-pulse rounded"></div>)}
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-slate-700/50">
                 {topBatsmen.map((batsman, idx) => (
-                  <div key={idx} className="py-2 flex justify-between items-center">
+                  <div key={idx} className="py-2.5 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                      <span className="text-gray-400 font-mono text-sm">{idx + 1}</span>
+                      <span className="text-slate-500 font-mono text-xs w-4">{idx + 1}</span>
                       <div>
-                        <Link href={`/player/${batsman.name}`} className="text-blue-600 font-semibold hover:underline text-sm">
+                        <Link href={`/player/${batsman.name}`} className="font-semibold hover:text-blue-400 transition-colors text-sm">
                           {batsman.name}
                         </Link>
-                        <div className="text-xs text-gray-500">{batsman.team_name}</div>
                       </div>
                     </div>
-                    <div className="font-bold text-gray-800 text-sm">
-                      {batsman.bat_runs}
+                    <div className="font-mono font-bold text-emerald-400 text-sm">
+                      {batsman.bat_runs.toLocaleString()}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-            <Link href="/records" className="block text-center w-full mt-4 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md text-sm text-gray-600 transition-colors">
-              View All Records
+            <Link href="/records" className="block text-center w-full mt-6 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm font-medium transition-colors text-blue-300 hover:text-blue-200 shadow-inner">
+              Explore All Records &rarr;
             </Link>
           </div>
-
         </div>
 
       </div>

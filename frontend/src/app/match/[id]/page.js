@@ -7,6 +7,7 @@ export default function MatchScorecard() {
   const params = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(1);
 
   useEffect(() => {
     const fetchMatch = async () => {
@@ -24,135 +25,192 @@ export default function MatchScorecard() {
     fetchMatch();
   }, [params.id]);
 
-  if (loading) return <div className="p-12 text-center text-gray-500">Loading scorecard...</div>;
-  if (!data || data.error) return <div className="p-12 text-center text-red-500">Match not found.</div>;
+  if (loading) return <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-12 text-center text-zinc-400">Loading Scorecard Data...</div>;
+  if (!data || data.error) return <div className="min-h-screen bg-zinc-950 p-12 text-center text-red-500 font-bold">Match not found in database.</div>;
 
-  const { info, innings } = data;
+  const { match_meta: info, innings } = data;
+  
+  // Format result
+  const resultStr = info.result || info.series || "";
 
   return (
-    <div className="py-6 px-4 sm:px-0">
-      
-      {/* Match Header */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-        <div className="flex justify-between items-start mb-4">
-          <span className="text-sm font-bold text-gray-500 uppercase">{info.format} &bull; {info.date}</span>
-          <span className="text-sm text-gray-500">{info.venue}</span>
-        </div>
-        <div className="flex justify-center items-center gap-12 mb-6">
-          <div className="text-center">
-            <h2 className="text-2xl font-black text-gray-800">{info.team1_name}</h2>
+    <div className="min-h-screen bg-zinc-950 py-10 px-4 sm:px-6 lg:px-8 text-zinc-200">
+      <div className="max-w-5xl mx-auto space-y-8">
+        
+        {/* Match Header Ribbon */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl">
+          <div className="bg-zinc-800/50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center border-b border-zinc-800">
+            <span className="text-xs font-bold tracking-widest text-emerald-500 uppercase">{info.match_format || info.format} • {info.match_category}</span>
+            <span className="text-xs text-zinc-400 mt-2 sm:mt-0">{info.tournament} • {info.season}</span>
           </div>
-          <div className="text-gray-400 font-italic text-sm">vs</div>
-          <div className="text-center">
-            <h2 className="text-2xl font-black text-gray-800">{info.team2_name}</h2>
-          </div>
-        </div>
-        <div className="text-center text-blue-700 font-bold bg-blue-50 py-2 rounded">
-          {info.winner_name} {info.win_margin_text ? info.win_margin_text : "won"}
-        </div>
-      </div>
-
-      {/* Innings Accordions */}
-      <div className="flex flex-col gap-6">
-        {innings.map((inn, idx) => (
-          <div key={idx} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          
+          <div className="px-8 py-10 flex flex-col items-center justify-center relative">
+            <div className="absolute top-4 right-4 text-xs text-zinc-500">{info.ground_name || info.venue}</div>
             
-            {/* Innings Header */}
-            <div className="bg-gray-800 text-white px-4 py-3 flex justify-between items-center">
-              <h3 className="font-bold">{inn.batting_team} 1st Innings</h3>
-              <span className="font-bold">{inn.runs}/{inn.wickets} <span className="text-gray-400 font-normal ml-2">({inn.overs} Overs)</span></span>
+            <div className="flex flex-col md:flex-row items-center justify-center gap-6 w-full">
+              <div className="flex-1 flex justify-end">
+                <h2 className="text-3xl font-black tracking-tight text-white">{info.team1 || info.title?.split('v')[0]?.strip() || "Team 1"}</h2>
+              </div>
+              <div className="flex flex-col items-center px-8">
+                <span className="text-zinc-600 font-bold text-sm italic mb-2">VS</span>
+              </div>
+              <div className="flex-1 flex justify-start">
+                <h2 className="text-3xl font-black tracking-tight text-white">{info.team2 || info.title?.split('v')[1]?.strip() || "Team 2"}</h2>
+              </div>
             </div>
-
-            {/* Batting Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                  <tr>
-                    <th className="px-4 py-3">Batter</th>
-                    <th className="px-4 py-3"></th>
-                    <th className="px-4 py-3 text-right font-bold text-gray-800">R</th>
-                    <th className="px-4 py-3 text-right">B</th>
-                    <th className="px-4 py-3 text-right">4s</th>
-                    <th className="px-4 py-3 text-right">6s</th>
-                    <th className="px-4 py-3 text-right">SR</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {inn.batting.map(b => (
-                    <tr key={b.batter_name} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-blue-600 hover:underline whitespace-nowrap">
-                        <Link href={`/player/${b.batter_name}`}>{b.batter_name}</Link>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">{b.dismissal_text}</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-800">{b.runs}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{b.balls}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{b.fours}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{b.sixes}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{b.strike_rate !== null ? b.strike_rate : '-'}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-gray-50">
-                    <td className="px-4 py-3 font-semibold text-gray-700">Extras</td>
-                    <td colSpan="6" className="px-4 py-3 font-bold text-gray-800">{inn.extras_total}</td>
-                  </tr>
-                  <tr className="bg-gray-100 border-t-2 border-gray-200">
-                    <td className="px-4 py-3 font-bold text-gray-900 uppercase text-xs">Total</td>
-                    <td colSpan="6" className="px-4 py-3 font-bold text-gray-900">
-                      {inn.runs}/{inn.wickets} <span className="font-normal text-gray-600">({inn.overs} Overs)</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Fall of Wickets */}
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-              <h4 className="text-xs font-bold uppercase text-gray-500 mb-2">Fall of Wickets</h4>
-              <p className="text-sm text-gray-700 leading-relaxed">
-                {inn.fow.map((f, i) => (
-                  <span key={i}>
-                    {f.score}-{f.wicket_num} ({f.player_out}, {f.overs} ov){i < inn.fow.length - 1 ? ', ' : ''}
-                  </span>
-                ))}
-              </p>
-            </div>
-
-            {/* Bowling Table */}
-            <div className="overflow-x-auto border-t border-gray-200">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                  <tr>
-                    <th className="px-4 py-3">Bowler</th>
-                    <th className="px-4 py-3 text-right">O</th>
-                    <th className="px-4 py-3 text-right">M</th>
-                    <th className="px-4 py-3 text-right">R</th>
-                    <th className="px-4 py-3 text-right font-bold text-gray-800">W</th>
-                    <th className="px-4 py-3 text-right">ECON</th>
-                    <th className="px-4 py-3 text-right">WD</th>
-                    <th className="px-4 py-3 text-right">NB</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {inn.bowling.map(b => (
-                    <tr key={b.bowler_name} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-semibold text-blue-600 hover:underline whitespace-nowrap">
-                        <Link href={`/player/${b.bowler_name}`}>{b.bowler_name}</Link>
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600">{b.overs}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{b.maidens}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{b.runs}</td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-800">{b.wickets}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{b.econ !== null ? b.econ : '-'}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{b.wides}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{b.no_balls}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
           </div>
-        ))}
+          
+          <div className="bg-emerald-950/30 border-t border-emerald-900/30 px-6 py-4 text-center">
+            <p className="text-emerald-400 font-bold">{resultStr}</p>
+          </div>
+        </div>
+
+        {/* Innings Tabs */}
+        {innings.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {innings.map((inn) => (
+              <button 
+                key={inn.metadata.innings_number}
+                onClick={() => setActiveTab(inn.metadata.innings_number)}
+                className={`px-6 py-3 rounded-t-lg font-bold text-sm transition-colors ${activeTab === inn.metadata.innings_number ? 'bg-zinc-800 text-white border-t-2 border-emerald-500' : 'bg-zinc-900/50 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/80'}`}
+              >
+                {inn.metadata.team_name} ({inn.metadata.total_runs}/{inn.metadata.wickets})
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Scorecard Table */}
+        {innings.map((inn) => {
+          if (inn.metadata.innings_number !== activeTab) return null;
+          const didNotBat = inn.batting.filter(b => b.dismissal?.toLowerCase() === 'did not bat');
+          const batted = inn.batting.filter(b => b.dismissal?.toLowerCase() !== 'did not bat');
+          
+          return (
+            <div key={inn.metadata.innings_number} className="bg-zinc-900 border border-zinc-800 rounded-b-xl rounded-tr-xl overflow-hidden shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {/* Batting Header */}
+              <div className="bg-zinc-800 px-6 py-3 border-b border-zinc-700 flex justify-between items-center">
+                <h3 className="font-bold text-zinc-100">Batting</h3>
+              </div>
+
+              {/* Batting Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-zinc-900/50 text-zinc-400 text-xs uppercase tracking-wider border-b border-zinc-800">
+                    <tr>
+                      <th className="px-6 py-4 font-medium">Batter</th>
+                      <th className="px-6 py-4 font-medium"></th>
+                      <th className="px-6 py-4 text-right font-bold text-zinc-300">R</th>
+                      <th className="px-6 py-4 text-right font-medium">B</th>
+                      <th className="px-6 py-4 text-right font-medium">4s</th>
+                      <th className="px-6 py-4 text-right font-medium">6s</th>
+                      <th className="px-6 py-4 text-right font-medium">SR</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {batted.map((b, idx) => {
+                      const sr = b.balls && parseInt(b.balls) > 0 ? ((b.runs / parseInt(b.balls)) * 100).toFixed(2) : '-';
+                      return (
+                        <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
+                          <td className="px-6 py-4 font-medium text-emerald-400 hover:text-emerald-300 whitespace-nowrap">
+                            {b.player_name}
+                          </td>
+                          <td className="px-6 py-4 text-zinc-500 text-xs">{b.dismissal}</td>
+                          <td className="px-6 py-4 text-right font-bold text-zinc-200">{b.runs}</td>
+                          <td className="px-6 py-4 text-right text-zinc-400">{b.balls}</td>
+                          <td className="px-6 py-4 text-right text-zinc-400">{b.fours}</td>
+                          <td className="px-6 py-4 text-right text-zinc-400">{b.sixes}</td>
+                          <td className="px-6 py-4 text-right text-zinc-500">{sr}</td>
+                        </tr>
+                      );
+                    })}
+                    
+                    {/* Extras & Total */}
+                    <tr className="bg-zinc-900/30">
+                      <td className="px-6 py-4 font-medium text-zinc-300">Extras</td>
+                      <td colSpan="6" className="px-6 py-4 font-bold text-zinc-300 flex items-center gap-2">
+                        <span>{inn.metadata.extras_total}</span>
+                        <span className="text-xs font-normal text-zinc-500">{inn.metadata.extras_detail}</span>
+                      </td>
+                    </tr>
+                    <tr className="bg-zinc-800/50 border-t-2 border-zinc-700">
+                      <td className="px-6 py-4 font-bold text-white uppercase tracking-wider text-xs">Total</td>
+                      <td colSpan="6" className="px-6 py-4 font-bold text-white">
+                        {inn.metadata.total_runs}/{inn.metadata.wickets} <span className="font-normal text-zinc-400 ml-2">({inn.metadata.overs} Overs)</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Did Not Bat */}
+              {didNotBat.length > 0 && (
+                <div className="px-6 py-4 bg-zinc-900 border-t border-zinc-800 text-sm">
+                  <span className="font-bold text-zinc-400 mr-2 uppercase text-xs tracking-wider">Did not bat:</span>
+                  <span className="text-emerald-500/80">
+                    {didNotBat.map(d => d.player_name).join(', ')}
+                  </span>
+                </div>
+              )}
+
+              {/* Fall of Wickets */}
+              {inn.fow && (
+                <div className="px-6 py-4 border-t border-zinc-800 bg-zinc-900/50">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">Fall of Wickets</h4>
+                  <p className="text-sm text-zinc-400 leading-relaxed">
+                    {inn.fow}
+                  </p>
+                </div>
+              )}
+
+              {/* Bowling Header */}
+              <div className="bg-zinc-800 px-6 py-3 border-t border-zinc-700 flex justify-between items-center mt-4">
+                <h3 className="font-bold text-zinc-100">Bowling</h3>
+              </div>
+
+              {/* Bowling Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-zinc-900/50 text-zinc-400 text-xs uppercase tracking-wider border-b border-zinc-800">
+                    <tr>
+                      <th className="px-6 py-4 font-medium">Bowler</th>
+                      <th className="px-6 py-4 text-right font-medium">O</th>
+                      <th className="px-6 py-4 text-right font-medium">M</th>
+                      <th className="px-6 py-4 text-right font-medium">R</th>
+                      <th className="px-6 py-4 text-right font-bold text-zinc-300">W</th>
+                      <th className="px-6 py-4 text-right font-medium">ECON</th>
+                      <th className="px-6 py-4 text-right font-medium">WD</th>
+                      <th className="px-6 py-4 text-right font-medium">NB</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {inn.bowling.map((b, idx) => {
+                      const oversFloat = parseFloat(b.overs || "0");
+                      const econ = oversFloat > 0 ? (b.runs / oversFloat).toFixed(2) : '-';
+                      return (
+                        <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
+                          <td className="px-6 py-4 font-medium text-emerald-400 hover:text-emerald-300 whitespace-nowrap">
+                            {b.player_name}
+                          </td>
+                          <td className="px-6 py-4 text-right text-zinc-400">{b.overs}</td>
+                          <td className="px-6 py-4 text-right text-zinc-400">{b.maidens}</td>
+                          <td className="px-6 py-4 text-right text-zinc-400">{b.runs}</td>
+                          <td className="px-6 py-4 text-right font-bold text-zinc-200">{b.wickets}</td>
+                          <td className="px-6 py-4 text-right text-zinc-500">{econ}</td>
+                          <td className="px-6 py-4 text-right text-zinc-500">{b.wides}</td>
+                          <td className="px-6 py-4 text-right text-zinc-500">{b.no_balls}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          );
+        })}
+        
       </div>
     </div>
   );

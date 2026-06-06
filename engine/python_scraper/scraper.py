@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 # Paths
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "master_archive.sqlite"))
 MAX_WORKERS = 100 # Resetting to a safer limit for CricketArchive
-MAX_MATCH_ID = 900000
+MAX_MATCH_ID = 1500000
 
 def get_cookies():
     print("Extracting Firefox cookies for CricketArchive...")

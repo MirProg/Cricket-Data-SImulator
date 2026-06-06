@@ -4,6 +4,8 @@ from pydantic import BaseModel
 import uvicorn
 import sys
 import os
+import sqlite3
+import re
 
 # Ensure the parent directory is in sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -11,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from engine.markov_simulator import MarkovSimulator
 from engine.advanced_stats import AdvancedStatsEngine
 from archive import router as archive_router
+from engine.full_match_simulator import FullMatchSimulator
 
 app = FastAPI(title="CricMatrix AI Engine", version="1.0")
 
@@ -24,6 +27,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+DB_PATH = r"C:\Users\seo\.local\bin\cricket_simulator\data\master_archive.sqlite"
+
+class AskRequest(BaseModel):
+    query: str
+
+@app.post("/api/ask")
+def ask_cricdb(request: AskRequest):
+    q = request.query.lower()
+    answer = ""
+    sql = ""
+    
+    # Mocked Text-to-SQL Domain Router
+    if "most runs" in q and ("test" in q or "tests" in q):
+        sql = "SELECT player_name, SUM(runs) as total_runs FROM ScrapedBatting JOIN ScrapedMatches ON ScrapedBatting.match_id = ScrapedMatches.match_id WHERE match_format = 'Test' GROUP BY player_name ORDER BY total_runs DESC LIMIT 1;"
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(sql).fetchone()
+            if row:
+                answer = f"The player with the most runs in Test matches in our database is **{row[0]}** with **{row[1]}** runs."
+    elif "most wickets" in q:
+        sql = "SELECT player_name, SUM(wickets) as total_wickets FROM ScrapedBowling GROUP BY player_name ORDER BY total_wickets DESC LIMIT 1;"
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(sql).fetchone()
+            if row:
+                answer = f"The player with the most wickets across all formats is **{row[0]}** with **{row[1]}** wickets."
+    else:
+        sql = "SELECT player_name, SUM(runs) as total_runs FROM ScrapedBatting GROUP BY player_name ORDER BY total_runs DESC LIMIT 1;"
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(sql).fetchone()
+            answer = f"I'm an AI agent. I mapped your query to a default SQL aggregation. The all-time highest run scorer across all scraped formats is **{row[0]}** with **{row[1]}** runs."
+
+    return {"answer": answer, "sql": sql}
 
 class SimulationRequest(BaseModel):
     runs_scored: int = 0
@@ -71,128 +106,6 @@ def get_pressure_index(req: PressureRequest):
     )
     return {"pressure_index": pressure}
 
-@app.get("/api/matches")
-def get_matches_recent(limit: int = 12):
-    import sqlite3
-    db_path = "D:/cricket_data/cricmatrix.db"
-    matches = []
-    try:
-        with sqlite3.connect(db_path) as conn:
-            # Get matches that have deliveries
-            query = """
-                SELECT m.match_id, m.date, m.venue, m.format, m.team1 as team1_name, m.team2 as team2_name, m.winner as winner_name, m.win_margin_runs 
-                FROM matches m 
-                JOIN deliveries d ON m.match_id = d.match_id 
-                GROUP BY m.match_id 
-                ORDER BY m.date DESC 
-                LIMIT ?
-            """
-            cursor = conn.execute(query, (limit,))
-            columns = [col[0] for col in cursor.description]
-            for row in cursor.fetchall():
-                matches.append(dict(zip(columns, row)))
-    except Exception as e:
-        print("Matches error:", e)
-    return matches
-
-@app.get("/api/matches/{match_id}")
-def get_match_detail(match_id: str):
-    import sqlite3
-    db_path = "D:/cricket_data/cricmatrix.db"
-    try:
-        with sqlite3.connect(db_path) as conn:
-            # Metadata
-            cursor = conn.execute("SELECT * FROM matches WHERE match_id = ?", (match_id,))
-            if not cursor.fetchone():
-                return {"error": "Match not found"}
-            
-            # Deliveries
-            cursor = conn.execute("SELECT innings, over, ball, batter, bowler, runs_batter, is_wicket, player_dismissed FROM deliveries WHERE match_id = ? ORDER BY innings, over, ball", (match_id,))
-            deliveries = cursor.fetchall()
-            
-            scorecards = {}
-            for d in deliveries:
-                inn, over, ball, batter, bowler, runs, is_wicket, dismissed = d
-                if inn not in scorecards:
-                    scorecards[inn] = {"batting": {}, "bowling": {}, "total": 0, "wickets": 0}
-                
-                sc = scorecards[inn]
-                sc["total"] += runs
-                if is_wicket: sc["wickets"] += 1
-                
-                if batter not in sc["batting"]:
-                    sc["batting"][batter] = {"runs": 0, "balls": 0, "4s": 0, "6s": 0, "out": False}
-                
-                sc["batting"][batter]["runs"] += runs
-                sc["batting"][batter]["balls"] += 1
-                if runs == 4: sc["batting"][batter]["4s"] += 1
-                if runs == 6: sc["batting"][batter]["6s"] += 1
-                if is_wicket and dismissed == batter:
-                    sc["batting"][batter]["out"] = True
-                    
-                if bowler not in sc["bowling"]:
-                    sc["bowling"][bowler] = {"runs": 0, "balls": 0, "wickets": 0}
-                    
-                sc["bowling"][bowler]["runs"] += runs
-                sc["bowling"][bowler]["balls"] += 1
-                if is_wicket and dismissed != "run out":
-                    sc["bowling"][bowler]["wickets"] += 1
-                    
-            return {"match_id": match_id, "scorecards": scorecards}
-    except Exception as e:
-        print("Match detail error:", e)
-        return {"error": str(e)}
-
-@app.get("/api/v1/system/status")
-def get_system_status():
-    import sqlite3
-    db_path = "D:/cricket_data/cricmatrix.db"
-    total_matches = 0
-    total_players = 0
-    total_deliveries = 0
-    try:
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.execute("SELECT COUNT(*) FROM matches")
-            total_matches = cursor.fetchone()[0]
-            cursor = conn.execute("SELECT COUNT(*) FROM canonical_players")
-            total_players = cursor.fetchone()[0]
-            cursor = conn.execute("SELECT COUNT(*) FROM deliveries")
-            total_deliveries = cursor.fetchone()[0]
-    except Exception:
-        pass
-        
-    return {
-        "database": {
-            "total_matches": total_matches,
-            "total_balls_delivered": total_deliveries,
-            "total_players": total_players
-        },
-        "scraper_logs": [
-            "[2026-06-01 12:00:00] [INFO] ESPN Spider sleeping... Rate limit.",
-            "[2026-06-01 12:01:00] [INFO] Cricbuzz socket listening...",
-            "[2026-06-01 12:02:00] [SUCCESS] Ingested 5336 new matches from Cricsheet."
-        ]
-    }
-
-@app.get("/search/players")
-def search_players(q: str):
-    import sqlite3
-    db_path = "D:/cricket_data/cricmatrix.db"
-    results = []
-    try:
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.execute(
-                "SELECT canonical_id, primary_name FROM canonical_players WHERE primary_name LIKE ? LIMIT 10",
-                (f"%{q}%",)
-            )
-            for row in cursor.fetchall():
-                results.append({"id": row[0], "name": row[1]})
-    except Exception as e:
-        print("Search error:", e)
-    return {"query": q, "results": results}
-
-from engine.full_match_simulator import FullMatchSimulator
-
 class MatchSimulationRequest(BaseModel):
     team1: list[str]
     team2: list[str]
@@ -204,54 +117,168 @@ def simulate_full_match(req: MatchSimulationRequest):
     result = sim.simulate_match(req.team1, req.team2)
     return result
 
+@app.get("/api/matches")
+def get_matches_recent(limit: int = 12, category: str = "recent"):
+    matches = []
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            query = "SELECT * FROM ScrapedMatches"
+            params = []
+            
+            if category == "international":
+                query += " WHERE match_category = 'International'"
+            elif category == "domestic":
+                query += " WHERE match_category = 'Domestic'"
+                
+            query += " ORDER BY match_id DESC LIMIT ?"
+            params.append(limit)
+            
+            cursor = conn.execute(query, params)
+            columns = [col[0] for col in cursor.description]
+            for row in cursor.fetchall():
+                m = dict(zip(columns, row))
+                # Add synthetic fields for frontend compatibility
+                m['date'] = m.get('season') or "Unknown Date"
+                
+                m['team1_name'] = m.get('team1') or m.get('title') or "Unknown"
+                m['team2_name'] = m.get('team2') or ""
+                
+                m['winner_name'] = ""
+                res = m.get('result') or m.get('series') or ""
+                if 'won' in res.lower():
+                    m['winner_name'] = res.split('won')[0].strip()
+                    
+                matches.append(m)
+    except Exception as e:
+        print("Matches error:", e)
+    return matches
+
+@app.get("/api/match/{match_id}")
+def get_match_scorecard(match_id: int):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            # 1. Fetch Match Metadata
+            cursor = conn.execute("SELECT * FROM ScrapedMatches WHERE match_id = ?", (match_id,))
+            row = cursor.fetchone()
+            if not row:
+                return {"error": "Match not found"}
+            
+            columns = [col[0] for col in cursor.description]
+            match_meta = dict(zip(columns, row))
+            
+            # 2. Fetch Innings Metadata
+            innings_cursor = conn.execute("SELECT * FROM ScrapedInnings WHERE match_id = ? ORDER BY innings_number ASC", (match_id,))
+            innings_cols = [c[0] for c in innings_cursor.description]
+            innings_data = [dict(zip(innings_cols, r)) for r in innings_cursor.fetchall()]
+            
+            # 3. Fetch FOW
+            fow_cursor = conn.execute("SELECT innings_number, fow_string FROM ScrapedFOW WHERE match_id = ?", (match_id,))
+            fow_dict = {r[0]: r[1] for r in fow_cursor.fetchall()}
+            
+            # 4. Fetch Batting
+            batting_cursor = conn.execute("SELECT * FROM ScrapedBatting WHERE match_id = ?", (match_id,))
+            batting_cols = [c[0] for c in batting_cursor.description]
+            all_batting = [dict(zip(batting_cols, r)) for r in batting_cursor.fetchall()]
+            
+            # 5. Fetch Bowling
+            bowling_cursor = conn.execute("SELECT * FROM ScrapedBowling WHERE match_id = ?", (match_id,))
+            bowling_cols = [c[0] for c in bowling_cursor.description]
+            all_bowling = [dict(zip(bowling_cols, r)) for r in bowling_cursor.fetchall()]
+            
+            # Assemble payload
+            scorecard = {
+                "match_meta": match_meta,
+                "innings": []
+            }
+            
+            for inn in innings_data:
+                inn_num = inn['innings_number']
+                inn_payload = {
+                    "metadata": inn,
+                    "fow": fow_dict.get(inn_num, ""),
+                    "batting": [b for b in all_batting if b['innings_number'] == inn_num],
+                    "bowling": [bw for bw in all_bowling if bw['innings_number'] == inn_num]
+                }
+                scorecard["innings"].append(inn_payload)
+                
+            return scorecard
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/v1/system/status")
+def get_system_status():
+    total_matches = 0
+    total_players = 0
+    total_deliveries = 0
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.execute("SELECT COUNT(*) FROM ScrapedMatches")
+            total_matches = cursor.fetchone()[0]
+            try:
+                cursor = conn.execute("SELECT COUNT(DISTINCT player_name) FROM ScrapedBatting")
+                total_players = cursor.fetchone()[0]
+                cursor = conn.execute("SELECT SUM(balls) FROM ScrapedBatting")
+                total_deliveries = cursor.fetchone()[0]
+            except sqlite3.OperationalError:
+                pass
+    except Exception:
+        pass
+        
+    return {
+        "database": {
+            "total_matches": total_matches,
+            "total_balls_delivered": total_deliveries or 0,
+            "total_players": total_players or 0
+        },
+        "scraper_logs": [
+            "[INFO] SQLite Data Warehouse Connected",
+            "[SUCCESS] Relational Table Scheme Synchronized",
+            "[INFO] Waiting for extractor to populate records..."
+        ]
+    }
+
+@app.get("/search/players")
+def search_players(q: str):
+    results = []
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.execute(
+                "SELECT DISTINCT player_name FROM ScrapedBatting WHERE player_name LIKE ? LIMIT 10",
+                (f"%{q}%",)
+            )
+            for idx, row in enumerate(cursor.fetchall()):
+                results.append({"id": idx, "name": row[0]})
+    except Exception as e:
+        print("Search error:", e)
+    return {"query": q, "results": results}
+
 @app.get("/api/records")
 def get_records():
-    import json
-    import os
-    stats_path = os.path.join(os.path.dirname(__file__), "..", "data", "player_stats.json")
+    top_batsmen = []
+    top_bowlers = []
     try:
-        with open(stats_path, 'r') as f:
-            stats = json.load(f)
-            
-        batsmen = [{"name": k, "bat_runs": v.get("batting_runs", 0), "team_name": "INTL"} for k,v in stats.items()]
-        batsmen.sort(key=lambda x: x["bat_runs"], reverse=True)
-        
-        return {"top_run_scorers": batsmen[:10]}
+        with sqlite3.connect(DB_PATH) as conn:
+            # Top Batsmen
+            cursor = conn.execute("SELECT player_name, SUM(runs) as total_runs FROM ScrapedBatting GROUP BY player_name ORDER BY total_runs DESC LIMIT 10")
+            for row in cursor.fetchall():
+                top_batsmen.append({"name": row[0], "bat_runs": row[1], "team_name": "INTL"})
+                
+            # Top Bowlers
+            cursor = conn.execute("SELECT player_name, SUM(wickets) as total_wickets FROM ScrapedBowling GROUP BY player_name ORDER BY total_wickets DESC LIMIT 10")
+            for row in cursor.fetchall():
+                top_bowlers.append({"name": row[0], "wickets": row[1], "team_name": "INTL"})
+                
+        return {"top_run_scorers": top_batsmen, "top_wicket_takers": top_bowlers}
     except Exception:
-        return {"top_run_scorers": []}
+        return {"top_run_scorers": [], "top_wicket_takers": []}
 
 @app.get("/api/series")
 def get_series():
-    import sqlite3
-    db_path = "D:/cricket_data/cricmatrix.db"
-    series = []
-    try:
-        with sqlite3.connect(db_path) as conn:
-            # Mock series by grouping format and month
-            query = "SELECT format, substr(date, -4) as year FROM matches GROUP BY format, year LIMIT 10"
-            cursor = conn.execute(query)
-            idx = 1
-            for row in cursor.fetchall():
-                fmt, yr = row
-                series.append({"id": idx, "name": f"{fmt} Championship {yr}", "date": str(yr)})
-                idx += 1
-    except Exception:
-        pass
-    return series if series else [{"id": 1, "name": "Global Cricket Archive", "date": "All Time"}]
+    return [{"id": 1, "name": "Global Cricket Archive", "date": "All Time"}]
 
 @app.get("/api/teams")
 def get_teams():
-    import sqlite3
-    db_path = "D:/cricket_data/cricmatrix.db"
-    teams = []
-    try:
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.execute("SELECT DISTINCT team1 FROM matches LIMIT 50")
-            for idx, row in enumerate(cursor.fetchall()):
-                if row[0]: teams.append({"id": idx, "name": row[0]})
-    except Exception:
-        pass
-    return teams
+    return []
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
