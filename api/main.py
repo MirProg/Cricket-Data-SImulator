@@ -31,35 +31,30 @@ app.add_middleware(
 
 DB_PATH = r"C:\Users\seo\.local\bin\cricket_simulator\data\master_archive.sqlite"
 
+from engine.nlp_router import NLPRouter
+
 class AskRequest(BaseModel):
     query: str
 
 @app.post("/api/ask")
 def ask_cricdb(request: AskRequest):
     q = request.query.lower()
-    answer = ""
-    sql = ""
     
-    # Mocked Text-to-SQL Domain Router
-    if "most runs" in q and ("test" in q or "tests" in q):
-        sql = "SELECT player_name, SUM(runs) as total_runs FROM ScrapedBatting JOIN ScrapedMatches ON ScrapedBatting.match_id = ScrapedMatches.match_id WHERE match_format = 'Test' GROUP BY player_name ORDER BY total_runs DESC LIMIT 1;"
-        with sqlite3.connect(DB_PATH) as conn:
-            row = conn.execute(sql).fetchone()
-            if row:
-                answer = f"The player with the most runs in Test matches in our database is **{row[0]}** with **{row[1]}** runs."
-    elif "most wickets" in q:
-        sql = "SELECT player_name, SUM(wickets) as total_wickets FROM ScrapedBowling GROUP BY player_name ORDER BY total_wickets DESC LIMIT 1;"
-        with sqlite3.connect(DB_PATH) as conn:
-            row = conn.execute(sql).fetchone()
-            if row:
-                answer = f"The player with the most wickets across all formats is **{row[0]}** with **{row[1]}** wickets."
-    else:
-        sql = "SELECT player_name, SUM(runs) as total_runs FROM ScrapedBatting GROUP BY player_name ORDER BY total_runs DESC LIMIT 1;"
-        with sqlite3.connect(DB_PATH) as conn:
-            row = conn.execute(sql).fetchone()
-            answer = f"I'm an AI agent. I mapped your query to a default SQL aggregation. The all-time highest run scorer across all scraped formats is **{row[0]}** with **{row[1]}** runs."
-
-    return {"answer": answer, "sql": sql}
+    router = NLPRouter()
+    payload = router.parse_query(q)
+    
+    engine = StatsguruEngine()
+    result = engine.execute_query(payload["mode"], payload["filters"])
+    
+    answer = "No results found matching your query."
+    if result.get("data") and len(result["data"]) > 0:
+        top = result["data"][0]
+        if payload["mode"] == "batting":
+            answer = f"Based on our dynamic Statsguru aggregation, the top result is **{top['player_name']}** with **{top['total_runs']}** runs and a batting average of **{top.get('average', 'N/A')}**."
+        else:
+            answer = f"Based on our dynamic Statsguru aggregation, the top result is **{top['player_name']}** with **{top['total_wickets']}** wickets and a bowling average of **{top.get('bowling_average', 'N/A')}**."
+            
+    return {"answer": answer, "sql": result.get("sql", "Error executing query"), "filters": payload["filters"]}
 
 class SimulationRequest(BaseModel):
     runs_scored: int = 0

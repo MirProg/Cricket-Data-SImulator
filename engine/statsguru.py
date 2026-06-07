@@ -8,10 +8,43 @@ class StatsguruEngine:
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
 
+    def _apply_common_filters(self, filters, where_clauses, params, is_batting=True):
+        if filters.get("team"):
+            where_clauses.append("(m.team1 LIKE ? OR m.team2 LIKE ?)")
+            params.extend([f"%{filters['team']}%", f"%{filters['team']}%"])
+            
+        if filters.get("opposition"):
+            where_clauses.append("(m.team1 LIKE ? OR m.team2 LIKE ?)")
+            params.extend([f"%{filters['opposition']}%", f"%{filters['opposition']}%"])
+            
+        if filters.get("ground"):
+            where_clauses.append("m.ground_name LIKE ?")
+            params.append(f"%{filters['ground']}%")
+            
+        if filters.get("format"):
+            where_clauses.append("m.match_format LIKE ?")
+            params.append(f"%{filters['format']}%")
+            
+        if filters.get("year"):
+            where_clauses.append("m.season LIKE ?")
+            params.append(f"%{filters['year']}%")
+
+        if filters.get("match_result"):
+            res = filters['match_result'].lower()
+            if res == "won" and filters.get("team"):
+                where_clauses.append("lower(m.result) LIKE ?")
+                params.append(f"%{filters['team'].lower()} won%")
+            elif res == "lost" and filters.get("team"):
+                where_clauses.append("lower(m.result) NOT LIKE ? AND lower(m.result) LIKE '%won%'")
+                params.append(f"%{filters['team'].lower()} won%")
+            elif res == "drawn" or res == "draw":
+                where_clauses.append("lower(m.result) LIKE '%drawn%'")
+
+        if is_batting and filters.get("bowler_name"):
+            where_clauses.append("lower(b.dismissal) LIKE ?")
+            params.append(f"%b {filters['bowler_name'].lower()}%")
+
     def build_batting_query(self, filters):
-        """
-        Builds a dynamic SQL query to aggregate batting statistics based on filters.
-        """
         base_select = """
             SELECT 
                 b.player_name,
@@ -27,34 +60,14 @@ class StatsguruEngine:
             FROM ScrapedBatting b
             JOIN ScrapedMatches m ON b.match_id = m.match_id
         """
-        
         where_clauses = []
         params = []
         
-        # Apply filters
         if filters.get("player_name"):
             where_clauses.append("b.player_name LIKE ?")
             params.append(f"%{filters['player_name']}%")
             
-        if filters.get("team"):
-            where_clauses.append("(m.team1 LIKE ? OR m.team2 LIKE ?)")
-            params.extend([f"%{filters['team']}%", f"%{filters['team']}%"])
-            
-        if filters.get("opposition"):
-            where_clauses.append("(m.team1 LIKE ? OR m.team2 LIKE ?)")
-            params.extend([f"%{filters['opposition']}%", f"%{filters['opposition']}%"])
-            
-        if filters.get("ground"):
-            where_clauses.append("m.ground_name LIKE ?")
-            params.append(f"%{filters['ground']}%")
-            
-        if filters.get("format"):
-            where_clauses.append("m.match_format LIKE ?")
-            params.append(f"%{filters['format']}%")
-            
-        if filters.get("year"):
-            where_clauses.append("m.season LIKE ?")
-            params.append(f"%{filters['year']}%")
+        self._apply_common_filters(filters, where_clauses, params, is_batting=True)
 
         sql = base_select
         if where_clauses:
@@ -64,9 +77,6 @@ class StatsguruEngine:
         return sql, params
 
     def build_bowling_query(self, filters):
-        """
-        Builds a dynamic SQL query to aggregate bowling statistics based on filters.
-        """
         base_select = """
             SELECT 
                 bw.player_name,
@@ -81,34 +91,14 @@ class StatsguruEngine:
             FROM ScrapedBowling bw
             JOIN ScrapedMatches m ON bw.match_id = m.match_id
         """
-        
         where_clauses = []
         params = []
         
-        # Apply filters
         if filters.get("player_name"):
             where_clauses.append("bw.player_name LIKE ?")
             params.append(f"%{filters['player_name']}%")
             
-        if filters.get("team"):
-            where_clauses.append("(m.team1 LIKE ? OR m.team2 LIKE ?)")
-            params.extend([f"%{filters['team']}%", f"%{filters['team']}%"])
-            
-        if filters.get("opposition"):
-            where_clauses.append("(m.team1 LIKE ? OR m.team2 LIKE ?)")
-            params.extend([f"%{filters['opposition']}%", f"%{filters['opposition']}%"])
-            
-        if filters.get("ground"):
-            where_clauses.append("m.ground_name LIKE ?")
-            params.append(f"%{filters['ground']}%")
-            
-        if filters.get("format"):
-            where_clauses.append("m.match_format LIKE ?")
-            params.append(f"%{filters['format']}%")
-            
-        if filters.get("year"):
-            where_clauses.append("m.season LIKE ?")
-            params.append(f"%{filters['year']}%")
+        self._apply_common_filters(filters, where_clauses, params, is_batting=False)
 
         sql = base_select
         if where_clauses:
@@ -123,7 +113,7 @@ class StatsguruEngine:
         elif mode == "bowling":
             sql, params = self.build_bowling_query(filters)
         else:
-            raise ValueError("Invalid mode. Use 'batting' or 'bowling'.")
+            raise ValueError("Invalid mode")
 
         results = []
         try:
@@ -132,42 +122,18 @@ class StatsguruEngine:
                 columns = [col[0] for col in cursor.description]
                 for row in cursor.fetchall():
                     row_dict = dict(zip(columns, row))
-                    
-                    # Post-process derived metrics
                     if mode == "batting":
                         outs = row_dict['innings'] - row_dict['not_outs']
-                        # Batting Average
-                        if outs > 0:
-                            row_dict['average'] = round(row_dict['total_runs'] / outs, 2)
-                        else:
-                            row_dict['average'] = None # Infinite average
-                            
-                        # Strike Rate
-                        if row_dict['balls_faced'] > 0:
-                            row_dict['strike_rate'] = round((row_dict['total_runs'] / row_dict['balls_faced']) * 100, 2)
-                        else:
-                            row_dict['strike_rate'] = None
-                            
+                        row_dict['average'] = round(row_dict['total_runs'] / outs, 2) if outs > 0 else None
+                        row_dict['strike_rate'] = round((row_dict['total_runs'] / row_dict['balls_faced']) * 100, 2) if row_dict['balls_faced'] > 0 else None
                     elif mode == "bowling":
-                        # Convert overs (e.g. 10.4) to decimal balls to calculate true averages
-                        # Not doing strict ball conversion here for simplicity, using rough overs math
                         overs = row_dict['overs_bowled']
                         wickets = row_dict['total_wickets']
                         runs = row_dict['runs_conceded']
-                        
-                        if wickets > 0:
-                            row_dict['bowling_average'] = round(runs / wickets, 2)
-                        else:
-                            row_dict['bowling_average'] = None
-                            
-                        if overs > 0:
-                            row_dict['economy'] = round(runs / overs, 2)
-                        else:
-                            row_dict['economy'] = None
-                    
+                        row_dict['bowling_average'] = round(runs / wickets, 2) if wickets > 0 else None
+                        row_dict['economy'] = round(runs / overs, 2) if overs > 0 else None
                     results.append(row_dict)
         except Exception as e:
-            print("Statsguru Error:", e)
             return {"error": str(e), "sql": sql}
             
         return {"sql": sql, "count": len(results), "data": results}
