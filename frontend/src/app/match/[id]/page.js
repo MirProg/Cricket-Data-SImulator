@@ -114,7 +114,7 @@ export default function MatchScorecard() {
                       return (
                         <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
                           <td className="px-6 py-4 font-medium text-emerald-400 hover:text-emerald-300 whitespace-nowrap">
-                            {b.player_name}
+                            <Link href={`/player/${encodeURIComponent(b.player_name)}`}>{b.player_name}</Link>
                           </td>
                           <td className="px-6 py-4 text-zinc-500 text-xs">{b.dismissal}</td>
                           <td className="px-6 py-4 text-right font-bold text-zinc-200">{b.runs}</td>
@@ -191,7 +191,7 @@ export default function MatchScorecard() {
                       return (
                         <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
                           <td className="px-6 py-4 font-medium text-emerald-400 hover:text-emerald-300 whitespace-nowrap">
-                            {b.player_name}
+                            <Link href={`/player/${encodeURIComponent(b.player_name)}`}>{b.player_name}</Link>
                           </td>
                           <td className="px-6 py-4 text-right text-zinc-400">{b.overs}</td>
                           <td className="px-6 py-4 text-right text-zinc-400">{b.maidens}</td>

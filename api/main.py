@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engine.markov_simulator import MarkovSimulator
 from engine.advanced_stats import AdvancedStatsEngine
+from engine.statsguru import StatsguruEngine
 from archive import router as archive_router
 from engine.full_match_simulator import FullMatchSimulator
 
@@ -210,10 +211,35 @@ def get_system_status():
     total_matches = 0
     total_players = 0
     total_deliveries = 0
+    completed_extractions = 0
+    recent_extractions = []
+    
     try:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM ScrapedMatches")
             total_matches = cursor.fetchone()[0]
+            
+            try:
+                cursor = conn.execute("SELECT COUNT(*) FROM ExtractorProgress")
+                completed_extractions = cursor.fetchone()[0]
+                
+                # Fetch recent extractions for the ticker
+                cursor = conn.execute("""
+                    SELECT m.team1, m.team2, m.season 
+                    FROM ExtractorProgress e 
+                    JOIN ScrapedMatches m ON e.match_id = m.match_id 
+                    ORDER BY e.rowid DESC 
+                    LIMIT 10
+                """)
+                for row in cursor.fetchall():
+                    team1 = row[0] or "Unknown"
+                    team2 = row[1] or "Unknown"
+                    season = row[2] or "Unknown"
+                    recent_extractions.append(f"{team1} vs {team2} ({season})")
+                    
+            except sqlite3.OperationalError:
+                pass
+
             try:
                 cursor = conn.execute("SELECT COUNT(DISTINCT player_name) FROM ScrapedBatting")
                 total_players = cursor.fetchone()[0]
@@ -227,9 +253,11 @@ def get_system_status():
     return {
         "database": {
             "total_matches": total_matches,
+            "completed_extractions": completed_extractions,
             "total_balls_delivered": total_deliveries or 0,
             "total_players": total_players or 0
         },
+        "recent_extractions": recent_extractions,
         "scraper_logs": [
             "[INFO] SQLite Data Warehouse Connected",
             "[SUCCESS] Relational Table Scheme Synchronized",
@@ -237,19 +265,50 @@ def get_system_status():
         ]
     }
 
-@app.get("/search/players")
-def search_players(q: str):
+class StatsguruFilterRequest(BaseModel):
+    mode: str  # "batting" or "bowling"
+    filters: dict
+
+@app.post("/api/v1/statsguru/query")
+def statsguru_query(req: StatsguruFilterRequest):
+    engine = StatsguruEngine()
+    result = engine.execute_query(req.mode, req.filters)
+    return result
+
+@app.get("/api/v1/players/search")
+def search_players_api(q: str):
     results = []
     try:
         with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.execute(
-                "SELECT DISTINCT player_name FROM ScrapedBatting WHERE player_name LIKE ? LIMIT 10",
-                (f"%{q}%",)
-            )
-            for idx, row in enumerate(cursor.fetchall()):
-                results.append({"id": idx, "name": row[0]})
+            cursor = conn.execute("SELECT player_id, player_name FROM Players WHERE player_name LIKE ? LIMIT 10", (f"%{q}%",))
+            for row in cursor.fetchall():
+                results.append({"id": row[0], "name": row[1]})
     except Exception as e:
-        print("Search error:", e)
+        pass
+    return {"query": q, "results": results}
+
+@app.get("/api/v1/teams/search")
+def search_teams_api(q: str):
+    results = []
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.execute("SELECT team_id, team_name FROM Teams WHERE team_name LIKE ? LIMIT 10", (f"%{q}%",))
+            for row in cursor.fetchall():
+                results.append({"id": row[0], "name": row[1]})
+    except Exception as e:
+        pass
+    return {"query": q, "results": results}
+
+@app.get("/api/v1/venues/search")
+def search_venues_api(q: str):
+    results = []
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.execute("SELECT venue_id, venue_name FROM Venues WHERE venue_name LIKE ? LIMIT 10", (f"%{q}%",))
+            for row in cursor.fetchall():
+                results.append({"id": row[0], "name": row[1]})
+    except Exception as e:
+        pass
     return {"query": q, "results": results}
 
 @app.get("/api/records")

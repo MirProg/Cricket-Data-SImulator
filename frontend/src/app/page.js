@@ -1,6 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import dynamic from 'next/dynamic';
+
+const LiveProgressWidget = dynamic(
+  () => import('@/components/LiveProgressWidget'),
+  { ssr: false }
+);
 
 export default function DatabaseHome() {
   const [matches, setMatches] = useState([]);
@@ -39,6 +45,9 @@ export default function DatabaseHome() {
         <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Global Cricket Archive</h1>
         <p className="text-gray-500 mt-2 text-lg">Explore the complete database of historical matches and dynamic statistics.</p>
       </div>
+
+      {/* Live Extraction Telemetry */}
+      <LiveProgressWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         
@@ -129,7 +138,7 @@ export default function DatabaseHome() {
                     <div className="flex items-center gap-3">
                       <span className="text-slate-500 font-mono text-xs w-4">{idx + 1}</span>
                       <div>
-                        <Link href={`/player/${batsman.name}`} className="font-semibold hover:text-blue-400 transition-colors text-sm">
+                        <Link href={`/player/${encodeURIComponent(batsman.name)}`} className="font-semibold hover:text-blue-400 transition-colors text-sm">
                           {batsman.name}
                         </Link>
                       </div>

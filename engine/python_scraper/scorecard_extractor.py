@@ -189,7 +189,7 @@ def process_match(match_id, cookies):
         return match_id, None, None, None, None, str(e)
 
 def db_writer_thread(q, stop_event):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     cursor = conn.cursor()
     batch = []
     
@@ -270,11 +270,11 @@ def main():
             if status == "200":
                 db_queue.put((inn, fow, bat, bowl, m_id))
                 total_processed += 1
-            elif "403" in status or "429" in status:
-                # Retry this match id by submitting it again
+            elif "403" in status or "429" in status or "error" in status.lower() or "timeout" in status.lower() or "connection" in status.lower() or "failed" in status.lower():
+                # Retry this match id because it failed due to a transient network error (like an IP rotation)
                 futures_map[executor.submit(process_match, m_id, cookies)] = m_id
             else:
-                # Mark as done even if it failed so we don't loop forever
+                # Mark as done only for definitive non-transient HTTP errors (like 404)
                 db_queue.put(([], [], [], [], m_id))
                 total_processed += 1
                 
